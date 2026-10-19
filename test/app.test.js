@@ -153,7 +153,7 @@ test("serves app and home screen manifest", async () => {
 
 test("local deletion requires creator identity and preserves other events", async () => {
   const a = await request("groups", { group: "Delete test", name: "Alex" }),
-    b = await request("join", { invite: a.body.invite, name: "Alex" }),
+    b = await request("join", { invite: a.body.invite, name: "Alex B" }),
     c = await request("groups", { group: "Other delete test", name: "Alex" });
   const event = {
     title: "Delete me",
@@ -218,4 +218,23 @@ test("local deletion requires creator identity and preserves other events", asyn
       .status,
     403,
   );
+});
+
+test('local device linking shares identity and owner removal revokes all linked devices',async()=>{
+ const a=(await request('groups',{group:'Linked crew',name:'Owner'})).body;
+ const b=(await request('join',{invite:a.invite,name:'Friend'})).body;
+ const initial=(await request('state',null,a.token)).body;
+ assert.equal(initial.group.isOwner,true);
+ assert.equal((await request('join',{invite:a.invite,name:'Owner'},a.token)).body.token,a.token);
+ assert.equal((await request('join',{invite:a.invite,name:'owner'})).status,400);
+ const link=(await request('createDeviceLink',{},a.token)).body;assert.match(link.code,/^\d{6}$/);
+ const linked=(await request('claimDeviceLink',{code:link.code})).body;
+ assert.equal((await request('state',null,linked.token)).body.me.id,initial.me.id);
+ assert.match((await request('claimDeviceLink',{code:link.code})).body.error,/already used/);
+ const friend=(await request('state',null,b.token)).body;
+ assert.equal((await request('removeMember',{member:initial.me.id},b.token)).status,403);
+ assert.equal((await request('removeMember',{member:initial.me.id},a.token)).status,400);
+ assert.equal((await request('removeMember',{member:friend.me.id},linked.token)).status,200);
+ assert.equal((await request('state',null,b.token)).status,401);
+ assert.equal((await request('state',null,a.token)).body.members.length,1);
 });

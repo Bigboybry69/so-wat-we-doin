@@ -24,8 +24,11 @@ test("only recorded creators can delete, even with duplicate names; related vote
         name: "Alex",
         group: "Crew",
       }),
-      b = await rpc("doin_join", "", { name: "Alex", invite: a.invite }),
+      b = await rpc("doin_join", "", { name: "Alex B", invite: a.invite }),
       c = await rpc("doin_create_group", "", { name: "Alex", group: "Other" });
+    await db.exec("RESET ROLE");
+    await db.query("update doin_private.members set name='Alex' where token_hash=sha256(convert_to($1,'UTF8'))",[b.token]);
+    await db.exec("SET ROLE anon");
     const event = {
       title: "Concert",
       place: "Park",

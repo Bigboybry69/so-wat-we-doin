@@ -14,6 +14,9 @@ export async function api(path, data, token) {
       groups: "doin_create_group",
       group: "doin_update_group",
       join: "doin_join",
+      createDeviceLink: "doin_create_device_link",
+      claimDeviceLink: "doin_claim_device_link",
+      removeMember: "doin_remove_member",
       state: "doin_state",
       events: "doin_add_event",
       deleteEvent: "doin_delete_event",
@@ -59,6 +62,8 @@ export async function api(path, data, token) {
     );
   }
   if (!response.ok) {
+    if (result.code === "PGRST202" && ["createDeviceLink","claimDeviceLink","removeMember"].includes(path))
+      throw new Error("Device linking is being installed. Try Check for updates in a moment.");
     if (result.code === "PGRST202" && path === "deleteEvent")
       throw new Error(
         "Event deletion needs a one-time database update. Ask the group organizer to run the event deletion update.",
@@ -83,5 +88,6 @@ export async function api(path, data, token) {
         "Could not save your changes. Please try again.",
     );
   }
+  if (result?.error) throw new Error(result.error);
   return result;
 }

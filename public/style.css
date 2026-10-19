@@ -2318,3 +2318,11 @@ input[type="datetime-local"] {
 .legacy-event {
   margin-top: 20px;
 }
+.welcome-actions{display:flex;gap:16px;align-items:center;flex-wrap:wrap}.dashboard-shell .demo-banner{flex-wrap:wrap}.demo-banner #restore{border-bottom:1px solid #477887}.recovery-entry{width:100%;margin-top:13px}.recovery-actions{margin-top:22px}.code-help{margin-top:18px}#private-code{display:block;width:100%;resize:none;min-height:95px;margin:9px 0 12px;padding:13px;background:#07131b;color:var(--cyan);border:1px solid #396477;border-radius:5px;font:13px/1.7 monospace;overflow-wrap:anywhere}#merge-profiles{margin-bottom:0}#leave{margin-top:4px}
+
+.device-code {font-size:clamp(2.5rem,10vw,4rem);letter-spacing:.16em;color:var(--cyan,#54ddff);text-align:center;font-variant-numeric:tabular-nums;margin:24px 0;text-shadow:0 0 18px #00d9ff66}
+.backup-option {margin-top:24px;color:var(--muted)}
+.backup-option form {margin-top:16px}
+.member-list span {display:flex;align-items:center;gap:10px}
+.member-list small {opacity:.65}
+.member-list .text-button {margin:0 0 0 auto;font-size:.75rem}

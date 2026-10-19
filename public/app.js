@@ -1,8 +1,10 @@
+import { parseSignInCode, signInCode } from "./identity.js";
 import { findUpdate, updateUrl } from "./updates.js";
 import {
   notificationStatus,
   enableNotifications,
   disableNotifications,
+  syncDeviceNotifications,
 } from "./notifications.js";
 import { api as requestApi, appUrl } from "./api.js";
 
@@ -291,7 +293,7 @@ function render() {
       )
       .join(
         "",
-      )}</nav><div class="page-heading"><div><h1>${title}</h1><p>${view === "home" ? "Your plans, at a glance." : view === "events" ? "All the plans shared with your group." : "Find a day. Make a plan."}</p></div><button class="primary" id="add">${icon("plus")} Add event</button></div>${!token ? '<div class="demo-banner"><span>Sample plans. Create your own group.</span><button id="start">Create group →</button></div>' : ""}<div class="page-content" id="page-content">${view === "home" ? dashboard() : view === "calendar" ? calendar() : eventsPage()}</div><footer><span class="footer-mark">THE GRID</span><button class="footer-update" data-check-update>${icon("refresh")} Check for updates</button></footer></main>`;
+      )}</nav><div class="page-heading"><div><h1>${title}</h1><p>${view === "home" ? "Your plans, at a glance." : view === "events" ? "All the plans shared with your group." : "Find a day. Make a plan."}</p></div><button class="primary" id="add">${icon("plus")} Add event</button></div>${!token ? '<div class="demo-banner"><span>New here? Create a group.</span><div class="welcome-actions"><button id="start">Create group</button><button id="restore">Sign back in</button></div></div>' : ""}<div class="page-content" id="page-content">${view === "home" ? dashboard() : view === "calendar" ? calendar() : eventsPage()}</div><footer><span class="footer-mark">THE GRID</span><button class="footer-update" data-check-update>${icon("refresh")} Check for updates</button></footer></main>`;
   bind();
   if (focusedAction)
     document
@@ -305,13 +307,17 @@ function modal(html) {
   $(".close").onclick = () => dialog.close();
 }
 function groupDialog() {
-  const inviteCode = new URLSearchParams(location.search).get("join");
+  let inviteCode = new URLSearchParams(location.search).get("join");
+  if (token && state && inviteCode === state.group.id) { history.replaceState({}, "", appUrl+"#"+view); inviteCode=null; toast("You’re already in this group."); }
   if (token && !inviteCode) {
     modal(
-      `<p class="eyebrow">YOUR GROUP</p><h2>${esc(state.group.name)}</h2><p>You're connected as <strong>${esc(state.me.name)}</strong>.</p><div class="member-list">${state.members.map((m) => `<span>${esc(m.name)}</span>`).join("")}</div><div class="group-actions"><button id="share-group" class="primary">${icon("plus")} Invite friends</button><button id="edit-group" class="secondary">Edit group</button></div><button id="leave" class="text-button">Leave this group on this device</button><p class="hint">Leaving doesn’t delete the group. Keep an invite link if you want to rejoin.</p>`,
+      `<p class="eyebrow">YOUR GROUP</p><h2>${esc(state.group.name)}</h2><p>You're connected as <strong>${esc(state.me.name)}</strong>.</p><div class="member-list">${state.members.map((m) => `<span>${esc(m.name)}${m.isOwner ? ' <small>Owner</small>' : ''}${m.canRemove ? `<button class="text-button" data-remove-member="${esc(m.id)}">Remove</button>` : ''}</span>`).join("")}</div><div class="group-actions"><button id="share-group" class="primary">${icon("plus")} Invite friends</button><button id="edit-group" class="secondary">Edit group</button></div><button id="recovery-code" class="secondary recovery-entry">Use another device</button><button id="backup-code" class="text-button">Save a private backup code</button><button id="leave" class="text-button">Sign out on this device</button><p class="hint">Your membership stays. Link your next device before signing out, or save a backup code.</p>`,
     );
     $("#share-group").onclick = invite;
     $("#edit-group").onclick = editGroupDialog;
+    $("#recovery-code").onclick = () => recoveryCodeDialog();
+    $("#backup-code").onclick = backupCodeDialog;
+    document.querySelectorAll("[data-remove-member]").forEach(button => button.onclick = () => removeMemberDialog(button.dataset.removeMember));
     $("#leave").onclick = async () => {
       try {
         await disableNotifications(api);
@@ -327,8 +333,9 @@ function groupDialog() {
     return;
   }
   modal(
-    `<p class="eyebrow">WELCOME TO THE GRID</p><h2>${inviteCode ? "Your people are here." : "Start with your people."}</h2><p>${inviteCode ? "Enter your name to join their plans." : "One group for events, votes, and rides."}</p><form id="group-form"><label>Your name<input name="name" autocomplete="given-name" maxlength="40" required placeholder="Your name"></label>${inviteCode ? "" : '<label>Group name<input name="group" maxlength="120" required placeholder="The weekend crew"></label>'}<button class="primary">${inviteCode ? "Join group" : "Create group"} ${icon("arrow")}</button><p class="form-error" role="alert"></p></form>`,
+    `<p class="eyebrow">WELCOME TO THE GRID</p><h2>${inviteCode ? "Your people are here." : "Start with your people."}</h2><p>${inviteCode ? "Enter your name to join their plans." : "One group for events, votes, and rides."}</p><form id="group-form"><label>Your name<input name="name" autocomplete="given-name" maxlength="40" required placeholder="Your name"></label>${inviteCode ? "" : '<label>Group name<input name="group" maxlength="120" required placeholder="The weekend crew"></label>'}<button class="primary">${inviteCode ? "Join group" : "Create group"} ${icon("arrow")}</button><p class="form-error" role="alert"></p></form><button id="restore-from-join" class="text-button">Already a member? Sign back in</button>`,
   );
+  $("#restore-from-join").onclick = signInDialog;
   $("#group-form").onsubmit = async (event) => {
     event.preventDefault();
     const button = event.target.querySelector("button");
@@ -352,6 +359,49 @@ function groupDialog() {
   };
 }
 
+function backupCodeDialog() {
+  modal(`<p class="eyebrow">YOUR PRIVATE SIGN-IN</p><h2>Save a backup code</h2><p>Copy this code. On another device, tap <strong>Sign back in → Have a saved backup code?</strong> and paste it. You’ll return as ${esc(state.me.name)} in ${esc(state.group.name)}.</p><label>Private sign-in code<textarea id="private-code" readonly autocomplete="off" autocapitalize="off" spellcheck="false">${esc(signInCode(token))}</textarea></label><p class="hint">Keep it private: anyone with this code can act as you. Save it in your password manager. It is not a group invite.</p><div class="group-actions recovery-actions"><button id="copy-private-code" class="primary">Copy my code</button><button id="done-private-code" class="secondary">Done</button></div><p class="form-error" role="alert"></p>`);
+  $('#copy-private-code').onclick = async () => {
+    try {await navigator.clipboard.writeText(signInCode(token));toast('Private sign-in code copied. Keep it for yourself.');}
+    catch {$('#private-code').select();$('.form-error').textContent='Select and copy the code above.';}
+  };
+  $('#done-private-code').onclick = () => $('#modal').close();
+}
+async function recoveryCodeDialog() {
+  modal(`<p class="eyebrow">LINK A DEVICE</p><h2>Use another device</h2><p>Generating your private linking code…</p><p class="form-error" role="alert"></p>`);
+  try {
+    const result=await api('createDeviceLink',{});
+    modal(`<p class="eyebrow">LINK A DEVICE</p><h2>Same profile. New device.</h2><p>On your new device, open The Grid and tap <strong>Sign back in</strong>. Enter these six digits:</p><div class="device-code" aria-label="Linking code">${esc(result.code)}</div><p class="hint">Expires in 10 minutes. Works once. Keep it private — it signs in as you.</p><button id="done-link" class="primary">Done</button>`);
+    $('#done-link').onclick=()=>$('#modal').close();
+  } catch(error) {if($('.form-error'))$('.form-error').textContent=error.message;}
+}
+function removeMemberDialog(id) {
+  const member=state.members.find(m=>String(m.id)===String(id));if(!member?.canRemove)return;
+  modal(`<p class="eyebrow">GROUP MEMBERS</p><h2>Remove ${esc(member.name)}?</h2><p>This signs them out on all linked devices and removes their votes and ride offers. Their shared events stay.</p><div class="group-actions"><button id="cancel-remove" class="secondary">Cancel</button><button id="confirm-remove" class="danger">Remove member</button></div><p class="form-error" role="alert"></p>`);
+  $('#cancel-remove').onclick=groupDialog;
+  $('#confirm-remove').onclick=async()=>{
+    $('#confirm-remove').disabled=true;
+    try{await api('removeMember',{member:id});await refresh(true);groupDialog();toast('Member removed.');}
+    catch(error){$('.form-error').textContent=error.message;$('#confirm-remove').disabled=false;}
+  };
+}
+function signInDialog() {
+  modal(`<p class="eyebrow">WELCOME BACK</p><h2>Sign back in</h2><p>On your signed-in device, tap your name → <strong>Use another device</strong>. Enter the six-digit code here.</p><form id="restore-form"><label>Six-digit linking code<input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required placeholder="000000"></label><button class="primary">Link this device ${icon('arrow')}</button><p class="form-error" role="alert"></p></form><details class="backup-option"><summary>Have a saved backup code?</summary><form id="backup-form"><label>Private backup code<input name="code" type="password" autocomplete="current-password" autocapitalize="off" spellcheck="false" required placeholder="GRID-…"></label><button class="secondary">Use backup code</button><p class="form-error" role="alert"></p></form></details>`);
+  const restore=async(candidate)=>{
+    const restored=await requestApi('state',undefined,candidate);
+    ++refreshNumber;token=candidate;localStorage.setItem(storageKey,token);state=restored;connected=true;
+    history.replaceState({},'',appUrl+'#'+view);$('#modal').close();render();toast('Welcome back, '+state.me.name+'.');
+    syncDeviceNotifications(api).catch(()=>toast('Signed in. Check the bell to enable alerts on this device.'));
+  };
+  for(const selector of ['#restore-form','#backup-form']) $(selector).onsubmit=async event=>{
+    event.preventDefault();const form=event.currentTarget,button=form.querySelector('button');button.disabled=true;
+    try {
+      const code=new FormData(form).get('code').trim();
+      const candidate=form.id==='backup-form'?parseSignInCode(code):(await requestApi('claimDeviceLink',{code},'')).token;
+      await restore(candidate);
+    }catch(error){form.querySelector('.form-error').textContent=error.message;button.disabled=false;}
+  };
+}
 function editGroupDialog() {
   modal(
     `<p class="eyebrow">GROUP SETTINGS</p><h2>Edit group</h2><form id="edit-group-form"><label>Group name<input name="name" required maxlength="120" value="${esc(state.group.name)}" placeholder="Your group name"></label><p class="hint">This changes the name for everyone. Your events and invite link stay the same.</p><div class="group-actions"><button class="primary" type="submit">Save changes ${icon("check")}</button><button class="secondary" type="button" id="cancel-edit-group">Cancel</button></div><p class="form-error" role="alert"></p></form>`,
@@ -369,7 +419,7 @@ function editGroupDialog() {
     button.disabled = true;
     try {
       const group = await api("group", { name });
-      state.group = group;
+      state.group = {...state.group,...group};
       render();
       groupDialog();
       toast("Group name updated for everyone.");
@@ -710,6 +760,7 @@ function bind() {
   if ($("#group-settings")) $("#group-settings").onclick = groupDialog;
   if ($("#notifications")) $("#notifications").onclick = notificationDialog;
   if ($("#start")) $("#start").onclick = groupDialog;
+  if ($("#restore")) $("#restore").onclick = signInDialog;
 }
 function navigate(next) {
   if (!["home", "events", "calendar"].includes(next)) return;

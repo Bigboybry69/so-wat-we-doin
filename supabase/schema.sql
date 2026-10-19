@@ -11,6 +11,7 @@ create table if not exists doin_private.members (
  gid uuid not null references doin_private.groups(id) on delete cascade,
  name text not null check(length(name) between 1 and 40)
 );
+alter table doin_private.groups add column if not exists created_by uuid references doin_private.members(id) on delete set null;
 create table if not exists doin_private.events (
  id uuid primary key default gen_random_uuid(), gid uuid not null references doin_private.groups(id) on delete cascade,
  title text not null check(length(title) between 1 and 120), url text not null default '',
@@ -52,10 +53,11 @@ end $$;
 
 create or replace function public.doin_create_group(p_token text,p_data jsonb) returns jsonb
 language plpgsql security definer set search_path='' as $$
-declare g uuid; t text:=replace(gen_random_uuid()::text||gen_random_uuid()::text,'-','');
+declare g uuid; mid uuid; t text:=replace(gen_random_uuid()::text||gen_random_uuid()::text,'-','');
 begin
  insert into doin_private.groups(name) values (doin_private.clean_text(p_data->>'group',120)) returning id into g;
- insert into doin_private.members(token_hash,gid,name) values(sha256(convert_to(t,'UTF8')),g,doin_private.clean_text(p_data->>'name',40));
+ insert into doin_private.members(token_hash,gid,name) values(sha256(convert_to(t,'UTF8')),g,doin_private.clean_text(p_data->>'name',40)) returning id into mid;
+ update doin_private.groups set created_by=mid where id=g;
  return jsonb_build_object('token',t,'invite',g);
 end $$;
 
@@ -74,9 +76,9 @@ language plpgsql security definer set search_path='' as $$
 declare m doin_private.members:=doin_private.require_member(p_token); result jsonb;
 begin
  select jsonb_build_object(
-  'group',(select jsonb_build_object('id',g.id,'name',g.name) from doin_private.groups g where g.id=m.gid),
+  'group',(select jsonb_build_object('id',g.id,'name',g.name,'isOwner',coalesce(g.created_by=m.id,false)) from doin_private.groups g where g.id=m.gid),
   'me',jsonb_build_object('name',m.name,'id',m.id),
-  'members',(select coalesce(jsonb_agg(jsonb_build_object('id',x.id,'name',x.name) order by x.name,x.id),'[]'::jsonb) from doin_private.members x where x.gid=m.gid),
+  'members',(select coalesce(jsonb_agg(jsonb_build_object('id',x.id,'name',x.name,'isOwner',coalesce(x.id=(select created_by from doin_private.groups where id=m.gid),false),'canRemove',coalesce(m.id=(select created_by from doin_private.groups where id=m.gid),false) and x.id<>m.id) order by x.name,x.id),'[]'::jsonb) from doin_private.members x where x.gid=m.gid),
   'events',(select coalesce(jsonb_agg(jsonb_build_object('id',e.id,'title',e.title,'url',e.url,'place',e.place,'starts',e.starts,'ends',e.ends,'category',e.category,'author',e.author,'canDelete',coalesce(e.added_by=m.id,false),'creatorKnown',e.added_by is not null,
    'responses',(select coalesce(jsonb_agg(jsonb_build_object('personId',x.id,'name',x.name,'mine',x.id=m.id,'vote',r.vote,'status',r.status,'seats',r.seats) order by x.name,x.id),'[]'::jsonb)
      from doin_private.responses r join doin_private.members x on x.id=r.member where r.event=e.id)
@@ -144,4 +146,125 @@ begin
 end $$;
 revoke all on function public.doin_delete_event(text,jsonb) from public;
 grant execute on function public.doin_delete_event(text,jsonb) to anon,authenticated;
+commit;
+-- Keep one member identity across browsers/Home Screen installs.
+-- Existing member credentials resolve to one canonical membership.
+begin;
+create table if not exists doin_private.member_credentials (
+ token_hash bytea primary key, member uuid not null references doin_private.members(id) on delete cascade
+);
+alter table doin_private.member_credentials enable row level security;
+revoke all on doin_private.member_credentials from public,anon,authenticated;
+create index if not exists doin_credentials_member on doin_private.member_credentials(member);
+insert into doin_private.member_credentials(token_hash,member) select token_hash,id from doin_private.members on conflict do nothing;
+create or replace function doin_private.register_member_credential() returns trigger
+language plpgsql security definer set search_path='' as $$
+begin
+ insert into doin_private.member_credentials(token_hash,member) values(new.token_hash,new.id);
+ return new;
+end $$;
+drop trigger if exists doin_member_credential on doin_private.members;
+create trigger doin_member_credential after insert on doin_private.members for each row execute function doin_private.register_member_credential();
+create or replace function doin_private.require_member(p_token text) returns doin_private.members
+language plpgsql security definer set search_path='' as $$
+declare m doin_private.members;
+begin
+ select x.* into m from doin_private.member_credentials c join doin_private.members x on x.id=c.member where c.token_hash=sha256(convert_to(p_token,'UTF8'));
+ if m.id is null then raise exception 'Please join or create a group.';end if;
+ return m;
+end $$;
+create or replace function public.doin_join(p_token text,p_data jsonb) returns jsonb
+language plpgsql security definer set search_path='' as $$
+declare g uuid; existing_id uuid; name_value text; t text:=replace(gen_random_uuid()::text||gen_random_uuid()::text,'-','');
+begin
+ select id into g from doin_private.groups where id::text=p_data->>'invite';
+ if g is null then raise exception 'That invite was not found.';end if;
+ select x.id into existing_id from doin_private.member_credentials c join doin_private.members x on x.id=c.member where c.token_hash=sha256(convert_to(p_token,'UTF8')) and x.gid=g;
+ if existing_id is not null then return jsonb_build_object('token',p_token,'invite',g);end if;
+ name_value:=doin_private.clean_text(p_data->>'name',40);
+ perform pg_advisory_xact_lock(hashtext(g::text),hashtext(lower(name_value)));
+ if exists(select 1 from doin_private.members where gid=g and lower(btrim(name))=lower(name_value)) then
+  raise exception 'That name is already in this group. Use your private sign-in code to sign back in. If you are a different person, choose a distinct name.';
+ end if;
+ insert into doin_private.members(token_hash,gid,name) values(sha256(convert_to(t,'UTF8')),g,name_value);
+ return jsonb_build_object('token',t,'invite',g);
+end $$;
+revoke all on function doin_private.register_member_credential(),doin_private.require_member(text) from public,anon,authenticated;
+revoke all on function public.doin_join(text,jsonb) from public;
+grant execute on function public.doin_join(text,jsonb) to anon,authenticated;
+notify pgrst, 'reload schema';
+commit;
+
+begin;
+create or replace function public.doin_remove_member(p_token text,p_data jsonb) returns jsonb
+language plpgsql security definer set search_path='' as $$
+declare m doin_private.members:=doin_private.require_member(p_token); removed uuid;
+begin
+ if not exists(select 1 from doin_private.groups where id=m.gid and created_by=m.id) then raise exception 'Only the group creator can remove members.';end if;
+ if p_data->>'member'=m.id::text then raise exception 'The group creator cannot be removed.';end if;
+ delete from doin_private.members where id::text=p_data->>'member' and gid=m.gid and id<>m.id returning id into removed;
+ if removed is null then raise exception 'Member not found in this group.';end if;
+ return jsonb_build_object('ok',true);
+end $$;
+revoke all on function public.doin_remove_member(text,jsonb) from public;
+grant execute on function public.doin_remove_member(text,jsonb) to anon,authenticated;
+commit;
+begin;
+create table if not exists doin_private.device_links (
+ code_hash bytea primary key, member uuid unique not null references doin_private.members(id) on delete cascade,
+ created_at timestamptz not null default now(), expires_at timestamptz not null
+);
+create table if not exists doin_private.link_limits (
+ bucket text primary key, failed integer not null, reset_at timestamptz not null
+);
+alter table doin_private.device_links enable row level security;
+alter table doin_private.link_limits enable row level security;
+revoke all on doin_private.device_links,doin_private.link_limits from public,anon,authenticated;
+create or replace function public.doin_create_device_link(p_token text,p_data jsonb) returns jsonb
+language plpgsql security definer set search_path='' as $$
+declare m doin_private.members:=doin_private.require_member(p_token); code text; inserted integer; attempts integer:=0; expiry timestamptz:=now()+interval '10 minutes';
+begin
+ perform pg_advisory_xact_lock(hashtext(m.id::text),81713);
+ if exists(select 1 from doin_private.device_links where member=m.id and created_at>now()-interval '10 seconds') then return jsonb_build_object('error','Wait a few seconds before generating another code.');end if;
+ delete from doin_private.device_links where expires_at<=now() or member=m.id;
+ loop
+  attempts:=attempts+1;
+  code:=lpad(((('x'||substr(replace(gen_random_uuid()::text,'-',''),1,8))::bit(32)::bigint)%1000000)::text,6,'0');
+  insert into doin_private.device_links(code_hash,member,expires_at) values(sha256(convert_to(code,'UTF8')),m.id,expiry) on conflict do nothing;
+  get diagnostics inserted=row_count;
+  exit when inserted=1;
+  if attempts>=10 then raise exception 'Could not generate a linking code. Try again.';end if;
+ end loop;
+ return jsonb_build_object('code',code,'expiresAt',expiry);
+end $$;
+create or replace function public.doin_claim_device_link(p_token text,p_data jsonb) returns jsonb
+language plpgsql security definer set search_path='' as $$
+declare mid uuid; t text:=replace(gen_random_uuid()::text||gen_random_uuid()::text,'-','');
+ ip_key text:='ip:'||encode(sha256(convert_to(coalesce((coalesce(nullif(current_setting('request.headers',true),''),'{}')::jsonb)->>'x-forwarded-for','unknown'),'UTF8')),'hex');
+ key text;
+begin
+ -- An application-wide limit supplements the IP hint, which is not trusted as identity.
+ -- Return errors as JSON so failed-attempt counters are committed, not rolled back.
+ perform pg_advisory_xact_lock(81713,90216);
+ if exists(select 1 from doin_private.link_limits where bucket='global' and failed>=30 and reset_at>now())
+ or exists(select 1 from doin_private.link_limits where bucket=ip_key and failed>=5 and reset_at>now()) then
+  return jsonb_build_object('error','Too many incorrect linking codes. Try again in 15 minutes.');
+ end if;
+ if coalesce(p_data->>'code','') ~ '^[0-9]{6}$' then
+  delete from doin_private.device_links where code_hash=sha256(convert_to(p_data->>'code','UTF8')) and expires_at>now() returning member into mid;
+ end if;
+ if mid is null then
+  foreach key in array array['global',ip_key] loop
+   insert into doin_private.link_limits(bucket,failed,reset_at) values(key,1,now()+interval '15 minutes')
+   on conflict(bucket) do update set failed=case when doin_private.link_limits.reset_at<=now() then 1 else doin_private.link_limits.failed+1 end,
+    reset_at=case when doin_private.link_limits.reset_at<=now() then now()+interval '15 minutes' else doin_private.link_limits.reset_at end;
+  end loop;
+  return jsonb_build_object('error','That code is invalid, expired, or already used. Generate a new code on your signed-in device.');
+ end if;
+ insert into doin_private.member_credentials(token_hash,member) values(sha256(convert_to(t,'UTF8')),mid);
+ return jsonb_build_object('token',t);
+end $$;
+revoke all on function public.doin_create_device_link(text,jsonb),public.doin_claim_device_link(text,jsonb) from public;
+grant execute on function public.doin_create_device_link(text,jsonb),public.doin_claim_device_link(text,jsonb) to anon,authenticated;
+notify pgrst, 'reload schema';
 commit;

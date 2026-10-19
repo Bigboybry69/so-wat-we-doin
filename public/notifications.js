@@ -84,3 +84,12 @@ export async function disableNotifications(api) {
   await api("pushUnsubscribe", { endpoint: sub.endpoint });
   await sub.unsubscribe();
 }
+
+// Move an already-enabled device subscription after an explicit identity switch.
+// Never request notification permission or create a subscription automatically.
+export async function syncDeviceNotifications(api) {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window) || Notification.permission !== 'granted') return;
+  const worker = await navigator.serviceWorker.getRegistration(new URL('./', import.meta.url));
+  const sub = await worker?.pushManager.getSubscription();
+  if (sub) await api('pushSubscribe', { subscription: sub.toJSON() });
+}

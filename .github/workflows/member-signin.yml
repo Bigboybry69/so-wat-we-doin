@@ -1,0 +1,29 @@
+name: Set up device linking and requested reset
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/group-owner.sql'
+      - 'supabase/membership.sql'
+      - 'supabase/device-linking.sql'
+      - 'supabase/reset-requested-groups.sql'
+      - 'scripts/setup-member-signin.js'
+      - '.github/workflows/member-signin.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: member-signin-setup
+  cancel-in-progress: false
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install linking, owner controls, and one-time requested data reset
+        run: node scripts/setup-member-signin.js
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
