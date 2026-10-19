@@ -21,7 +21,7 @@ const storageKey =
   "doin-token:" + appUrl + ":" + (window.DOIN_CONFIG?.supabaseUrl || "local");
 let token = localStorage.getItem(storageKey);
 let state,
-  view = ["home", "events", "calendar"].includes(location.hash.slice(1))
+  view = ["home", "events", "calendar", "food"].includes(location.hash.slice(1))
     ? location.hash.slice(1)
     : "home",
   month = new Date(),
@@ -185,6 +185,25 @@ function dashboard() {
   const shortDate = value => value.toLocaleDateString(undefined,{month:'short',day:'numeric'});
   return `<section class="weekly-calendar panel" aria-label="This week’s events"><div class="week-heading"><div><h2>This week</h2><p>${shortDate(start)} – ${shortDate(days[6].day)}</p></div><button class="text-button" data-view="calendar">Full calendar ${icon('arrow')}</button></div><div class="week-grid">${days.map(({day,events})=>`<section class="week-day ${dayKey(day)===dayKey(today)?'is-today':''}" aria-label="${esc(date(day))}"><h3><span>${day.toLocaleDateString(undefined,{weekday:'short'})}</span><b>${day.getDate()}</b>${dayKey(day)===dayKey(today)?'<small>Today</small>':''}</h3><div class="week-plans">${events.map(e=>`<button class="week-event ${new Date(e.ends)<today?'has-ended':''}" data-open="${e.id}"><span class="week-event-time">${new Date(e.starts)<day?'Continues':time(e.starts)}</span><strong>${esc(e.title)}</strong><span class="week-event-status">${e.responses.some(r=>r.mine&&r.status==='going')?'You’re going':e.responses.filter(r=>r.status==='going').length+' going'}</span></button>`).join('')||'<p class="week-empty">No plans</p>'}</div></section>`).join('')}</div></section>`;
 }
+function foodPage() {
+  const restaurants=state.restaurants||[];
+  return `<section class="food-list" aria-label="Restaurants to try">${restaurants.map(r=>`<article class="food-card panel"><div class="food-mark">${icon('food')}</div><div class="food-copy"><h2>${esc(r.name)}</h2><p>Added by ${esc(r.author)}</p><a class="source-link" href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">Open restaurant ${icon('arrow')}</a></div>${r.canDelete?`<button class="text-button food-remove" data-remove-restaurant="${esc(r.id)}" aria-label="Remove ${esc(r.name)}">Remove</button>`:''}</article>`).join('')||`<div class="empty-state panel">${icon('food')}<h2>Where should we eat?</h2><p>Save restaurants here for the next time your group is hungry.</p><button class="primary" id="empty-add">Add your first restaurant</button></div>`}</section>`;
+}
+function addRestaurantDialog() {
+  if(!token){groupDialog();return;}
+  modal(`<p class="eyebrow">FOOD TO TRY</p><h2>Add a restaurant</h2><form id="restaurant-form"><label>Restaurant name<input name="name" maxlength="120" required placeholder="A place you want to try"></label><label>Restaurant link<input name="url" type="url" maxlength="2048" required placeholder="https://…"></label><p class="hint">A website, map, or social link works. Everyone in your group can see it.</p><button class="primary">Save restaurant ${icon('check')}</button><p class="form-error" role="alert"></p></form>`);
+  $('#restaurant-form').onsubmit=async event=>{
+    event.preventDefault();const form=event.currentTarget,button=form.querySelector('button');button.disabled=true;
+    try{await api('addRestaurant',Object.fromEntries(new FormData(form)));$('#modal').close();await refresh(true);toast('Restaurant saved for your group.');}
+    catch(error){form.querySelector('.form-error').textContent=error.message;button.disabled=false;}
+  };
+}
+function removeRestaurantDialog(id) {
+  const restaurant=state.restaurants?.find(r=>r.id===id);if(!restaurant?.canDelete)return;
+  modal(`<p class="eyebrow">FOOD TO TRY</p><h2>Remove ${esc(restaurant.name)}?</h2><p>This removes it from your group’s food list.</p><div class="group-actions"><button class="secondary" id="cancel-remove-food">Cancel</button><button class="danger" id="confirm-remove-food">Remove</button></div><p class="form-error" role="alert"></p>`);
+  $('#cancel-remove-food').onclick=()=>$('#modal').close();
+  $('#confirm-remove-food').onclick=async()=>{const button=$('#confirm-remove-food');button.disabled=true;try{await api('deleteRestaurant',{restaurant:id});$('#modal').close();await refresh(true);toast('Restaurant removed.');}catch(error){$('.form-error').textContent=error.message;button.disabled=false;}};
+}
 function eventsPage() {
   const events = (
     eventFilter === "past"
@@ -252,7 +271,7 @@ function render() {
     : focus?.dataset?.going
       ? ["going", focus.dataset.going]
       : null;
-  const title = { home: "Home", events: "Your events", calendar: "Calendar" }[
+  const title = { home: "Home", events: "Your events", calendar: "Calendar", food: "Food" }[
     view
   ];
   $("#app").innerHTML =
@@ -260,6 +279,7 @@ function render() {
       ["home", "home", "Home"],
       ["events", "grid", "Your events"],
       ["calendar", "calendar", "Calendar"],
+      ["food", "food", "Food"],
     ]
       .map(
         ([value, symbol, label]) =>
@@ -267,7 +287,7 @@ function render() {
       )
       .join(
         "",
-      )}</nav><div class="page-heading"><div><h1>${title}</h1><p>${view === "home" ? "What’s happening this week." : view === "events" ? "All the plans shared with your group." : "Find a day. Make a plan."}</p></div><button class="primary" id="add">${icon("plus")} Add event</button></div>${!token ? '<div class="demo-banner"><span>New here? Create a group.</span><div class="welcome-actions"><button id="start">Create group</button><button id="restore">Sign back in</button></div></div>' : ""}<div class="page-content" id="page-content">${view === "home" ? dashboard() : view === "calendar" ? calendar() : eventsPage()}</div><footer><span class="footer-mark">THE GRID</span><button class="footer-update" data-check-update>${icon("refresh")} Check for updates</button></footer></main>`;
+      )}</nav><div class="page-heading"><div><h1>${title}</h1><p>${view === "home" ? "What’s happening this week." : view === "events" ? "All the plans shared with your group." : view === "food" ? "Places your group wants to try." : "Find a day. Make a plan."}</p></div><button class="primary" id="add">${icon("plus")} ${view === "food" ? "Add restaurant" : "Add event"}</button></div>${!token ? '<div class="demo-banner"><span>New here? Create a group.</span><div class="welcome-actions"><button id="start">Create group</button><button id="restore">Sign back in</button></div></div>' : ""}<div class="page-content" id="page-content">${view === "home" ? dashboard() : view === "calendar" ? calendar() : view === "food" ? foodPage() : eventsPage()}</div><footer><span class="footer-mark">THE GRID</span><button class="footer-update" data-check-update>${icon("refresh")} Check for updates</button></footer></main>`;
   bind();
   if (focusedAction)
     document
@@ -670,6 +690,7 @@ async function checkForUpdates() {
   }
 }
 function bind() {
+  document.querySelectorAll("[data-remove-restaurant]").forEach(button=>button.onclick=()=>removeRestaurantDialog(button.dataset.removeRestaurant));
   document
     .querySelectorAll("[data-check-update]")
     .forEach((button) => (button.onclick = checkForUpdates));
@@ -727,7 +748,7 @@ function bind() {
       }),
   );
   ["add", "empty-add"].forEach((id) => {
-    if ($("#" + id)) $("#" + id).onclick = addDialog;
+    if ($("#" + id)) $("#" + id).onclick = view === "food" ? addRestaurantDialog : addDialog;
   });
   $("#invite").onclick = invite;
   $("#account").onclick = groupDialog;
@@ -737,7 +758,7 @@ function bind() {
   if ($("#restore")) $("#restore").onclick = signInDialog;
 }
 function navigate(next) {
-  if (!["home", "events", "calendar"].includes(next)) return;
+  if (!["home", "events", "calendar", "food"].includes(next)) return;
   view = next;
   history.pushState({}, "", appUrl + "#" + next);
   render();
@@ -745,7 +766,7 @@ function navigate(next) {
 }
 function syncRoute() {
   const next = location.hash.slice(1);
-  view = ["home", "events", "calendar"].includes(next) ? next : "home";
+  view = ["home", "events", "calendar", "food"].includes(next) ? next : "home";
   if (state) render();
 }
 window.addEventListener("popstate", syncRoute);

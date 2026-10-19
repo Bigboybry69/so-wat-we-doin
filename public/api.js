@@ -11,6 +11,8 @@ export async function api(path, data, token) {
   let url, options;
   if (configured) {
     const names = {
+      addRestaurant: "doin_add_restaurant",
+      deleteRestaurant: "doin_delete_restaurant",
       groups: "doin_create_group",
       group: "doin_update_group",
       join: "doin_join",
@@ -62,6 +64,8 @@ export async function api(path, data, token) {
     );
   }
   if (!response.ok) {
+    if (result.code === "PGRST202" && ["addRestaurant","deleteRestaurant"].includes(path))
+      throw new Error("Food is being installed. Try Check for updates in a moment.");
     if (result.code === "PGRST202" && ["createDeviceLink","claimDeviceLink","removeMember"].includes(path))
       throw new Error("Device linking is being installed. Try Check for updates in a moment.");
     if (result.code === "PGRST202" && path === "deleteEvent")

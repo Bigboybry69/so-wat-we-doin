@@ -238,3 +238,12 @@ test('local device linking shares identity and owner removal revokes all linked 
  assert.equal((await request('state',null,b.token)).status,401);
  assert.equal((await request('state',null,a.token)).body.members.length,1);
 });
+
+test('local shared food list supports add, group isolation, validation, and contributor removal',async()=>{
+ const a=(await request('groups',{group:'Food crew',name:'Owner'})).body,b=(await request('join',{invite:a.invite,name:'Friend'})).body,c=(await request('groups',{group:'Other food crew',name:'Outside'})).body;
+ assert.equal((await request('addRestaurant',{name:'Cafe',url:'javascript:alert(1)'},a.token)).status,400);
+ const added=await request('addRestaurant',{name:'Cafe',url:'https://example.com/menu'},a.token);assert.equal(added.status,201);
+ assert.equal((await request('state',null,b.token)).body.restaurants[0].name,'Cafe');assert.equal((await request('state',null,c.token)).body.restaurants.length,0);
+ assert.equal((await request('deleteRestaurant',{restaurant:added.body.id},b.token)).status,403);
+ assert.equal((await request('deleteRestaurant',{restaurant:added.body.id},a.token)).status,200);assert.equal((await request('state',null,b.token)).body.restaurants.length,0);
+});
