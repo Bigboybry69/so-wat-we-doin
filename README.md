@@ -1,6 +1,6 @@
 # The Grid — plans with your people
 
-A simple mobile event planner with a Tron-inspired dark interface, cyan outlines, and glowing vector lettering. Two views: Events and Calendar. Vote and mark Going directly on cards; open Details & rides for attendance and carpool offers. Built with Node.js 24, vanilla JavaScript, and SQLite. No third-party runtime dependencies or external accounts required.
+A simple mobile event planner with a Tron-inspired dark interface, cyan outlines, and glowing vector lettering. Three pages: **Home** for a compact dashboard, **Your events** for shared plans, and **Calendar** for dates. Vote and mark Going directly on compact cards; open Details & rides for attendance and carpool offers. On phones, use the fixed bottom navigation to switch pages. Your events shows five plans per page, with All group events, I’m going, and Past filters. Built with Node.js 24, vanilla JavaScript, and SQLite. No third-party runtime dependencies or external accounts required.
 
 ## Free online hosting
 

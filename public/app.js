@@ -18,14 +18,18 @@ const storageKey =
   "doin-token:" + appUrl + ":" + (window.DOIN_CONFIG?.supabaseUrl || "local");
 let token = localStorage.getItem(storageKey);
 let state,
-  view = "events",
+  view = ["home", "events", "calendar"].includes(location.hash.slice(1))
+    ? location.hash.slice(1)
+    : "home",
   month = new Date(),
   selectedDay = null,
-  showPast = false,
+  eventFilter = "all",
+  eventPage = 0,
   busy = false,
   connected = false;
 let refreshNumber = 0;
 const paths = {
+  home: "m3 10 9-7 9 7v11h-6v-7H9v7H3Z",
   bell: "M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4",
   plus: "M12 5v14M5 12h14",
   check: "m5 12 4 4L19 6",
@@ -151,28 +155,89 @@ const overlaps = (event) =>
       new Date(other.ends) > new Date(event.starts),
   );
 function card(event) {
-  const mine = event.responses.find((r) => r.mine);
-  const going = event.responses.filter((r) => r.status === "going");
-  const seats = going.reduce((sum, r) => sum + r.seats, 0);
-  const votes = event.responses.reduce((sum, r) => sum + r.vote, 0);
-  const conflict = overlaps(event).length;
-  const start = new Date(event.starts);
-  return `<article class="event-card panel">
-    <div class="card-top"><span class="category">${icon(event.category.toLowerCase())}${esc(event.category)}</span>${conflict ? '<span class="conflict">Time clash</span>' : '<span class="card-signal" aria-hidden="true"></span>'}</div>
-    <div class="event-heading"><div class="date-tile"><span>${start.toLocaleDateString(undefined, { month: "short" })}</span><b>${start.getDate()}</b></div><div><p class="event-time">${start.toLocaleDateString(undefined, { weekday: "long" })} <span> / </span> ${time(event.starts)}</p><h3><button data-open="${event.id}">${esc(event.title)}</button></h3></div></div>
-    <p class="location">${icon("pin")}${esc(event.place)}</p>
-    <div class="attendance"><div class="avatars">${
-      going
-        .slice(0, 3)
-        .map(
-          (r) =>
-            `<span title="${esc(r.name)}">${esc(r.name.slice(0, 1))}</span>`,
-        )
-        .join("") || `<span class="no-attendees">${icon("users")}</span>`
-    }</div><span>${going.length ? going.length + " going" : "Who’s in?"}</span>${seats ? `<span class="ride-count">${icon("car")}${seats} seats</span>` : ""}</div>
-    <div class="card-actions"><button class="vote ${mine?.vote ? "active" : ""}" data-vote="${event.id}" aria-pressed="${Boolean(mine?.vote)}" aria-label="Vote for ${esc(event.title)}">${icon("vote")} Vote <b>${votes}</b></button><button class="going-button ${mine?.status === "going" ? "active" : ""}" data-going="${event.id}" aria-pressed="${mine?.status === "going"}">${icon(mine?.status === "going" ? "check" : "plus")}${mine?.status === "going" ? "Going" : "I’m going"}</button></div>
-    <button class="details-button" data-open="${event.id}">Details & rides ${icon("arrow")}</button>
-  </article>`;
+  const mine = event.responses.find((r) => r.mine),
+    going = event.responses.filter((r) => r.status === "going");
+  const seats = going.reduce((sum, r) => sum + r.seats, 0),
+    votes = event.responses.reduce((sum, r) => sum + r.vote, 0),
+    start = new Date(event.starts);
+  return `<article class="event-card panel"><div class="event-heading"><div class="date-tile"><span>${start.toLocaleDateString(undefined, { month: "short" })}</span><b>${start.getDate()}</b></div><div class="event-copy"><p class="event-time">${date(event.starts)} · ${time(event.starts)}${overlaps(event).length ? '<span class="conflict">Time clash</span>' : ""}</p><h3><button data-open="${event.id}">${esc(event.title)}</button></h3><p class="location">${icon("pin")}${esc(event.place)}</p></div></div><div class="attendance">${icon("users")}<span>${going.length} going</span>${seats ? `<span class="ride-count">${icon("car")}${seats} seats</span>` : ""}</div><div class="card-actions"><button class="vote ${mine?.vote ? "active" : ""}" data-vote="${event.id}" aria-pressed="${Boolean(mine?.vote)}" aria-label="Vote for ${esc(event.title)}">${icon("vote")} Vote <b>${votes}</b></button><button class="going-button ${mine?.status === "going" ? "active" : ""}" data-going="${event.id}" aria-pressed="${mine?.status === "going"}">${icon(mine?.status === "going" ? "check" : "plus")}${mine?.status === "going" ? "Going" : "I’m going"}</button><button class="details-button" data-open="${event.id}">Details & rides ${icon("arrow")}</button></div></article>`;
+}
+function upcoming() {
+  return state.events
+    .filter((e) => new Date(e.ends) >= new Date())
+    .sort((a, b) => new Date(a.starts) - new Date(b.starts));
+}
+function dashboard() {
+  const events = upcoming(),
+    going = events.filter((e) =>
+      e.responses.some((r) => r.mine && r.status === "going"),
+    );
+  const seats = going.reduce(
+    (sum, e) =>
+      sum +
+      e.responses
+        .filter((r) => r.status === "going")
+        .reduce((n, r) => n + r.seats, 0),
+    0,
+  );
+  const next = going[0] || events[0],
+    undecided = events
+      .filter(
+        (e) =>
+          !e.responses.some(
+            (r) =>
+              r.mine && (r.vote || r.status === "going" || r.status === "out"),
+          ),
+      )
+      .filter((e) => e.id !== next?.id);
+  return `<div class="dashboard-stats"><button class="stat panel" data-view="events"><span>Upcoming</span><b>${events.length}</b>${icon("calendar")}</button><button class="stat panel" data-event-filter="going"><span>You’re going</span><b>${going.length}</b>${icon("check")}</button><button class="stat panel" data-event-filter="going"><span>Seats offered${going.length ? " on your plans" : ""}</span><b>${seats}</b>${icon("car")}</button></div><div class="dashboard-grid"><section class="next-panel panel"><div class="section-line"><h2 class="section-heading">${going.length ? "YOUR NEXT EVENT" : "NEXT IN YOUR GROUP"}</h2>${icon("calendar")}</div>${next ? `<p class="next-date">${date(next.starts)} · ${time(next.starts)}</p><h2 class="next-title"><button data-open="${next.id}">${esc(next.title)}</button></h2><p class="location">${icon("pin")}${esc(next.place)}</p><div class="next-bottom"><span>${next.responses.filter((r) => r.status === "going").length} going${next.responses.some((r) => r.mine && r.status === "going") ? " · You’re in" : ""}</span><button class="secondary" data-open="${next.id}">Details & rides ${icon("arrow")}</button></div>` : `<h2 class="next-title">Make your next plan.</h2><p class="hint">Add an event and get your people together.</p><button class="secondary" id="empty-add">Add your first event ${icon("plus")}</button>`}</section><section class="decisions-panel panel"><div class="section-line"><h2 class="section-heading">${undecided.length ? "STILL DECIDING?" : "YOUR GROUP"}</h2><span>${undecided.length ? "Pick a plan" : state.members.length + " people"}</span></div>${
+    undecided
+      .slice(0, 2)
+      .map(
+        (e) =>
+          `<button class="dashboard-event" data-open="${e.id}"><span class="mini-date">${new Date(e.starts).getDate()}<small>${new Date(e.starts).toLocaleDateString(undefined, { month: "short" })}</small></span><span><strong>${esc(e.title)}</strong><small>${time(e.starts)} · ${e.responses.reduce((sum, r) => sum + r.vote, 0)} votes</small></span>${icon("right")}</button>`,
+      )
+      .join("") ||
+    `<p class="group-summary">${state.members
+      .slice(0, 4)
+      .map((m) => esc(m.name))
+      .join(
+        ", ",
+      )}${state.members.length > 4 ? " + " + (state.members.length - 4) + " more" : ""}</p><p class="hint">One place for your plans and rides.</p>`
+  }<button class="dashboard-link" data-view="events">See all events ${icon("arrow")}</button></section></div>`;
+}
+function eventsPage() {
+  const events = (
+    eventFilter === "past"
+      ? state.events
+          .filter((e) => new Date(e.ends) < new Date())
+          .sort((a, b) => new Date(b.starts) - new Date(a.starts))
+      : upcoming()
+  ).filter(
+    (e) =>
+      eventFilter !== "going" ||
+      e.responses.some((r) => r.mine && r.status === "going"),
+  );
+  const pages = Math.max(1, Math.ceil(events.length / 5));
+  eventPage = Math.min(eventPage, pages - 1);
+  return `<div class="events-toolbar"><div class="event-filters" aria-label="Filter events">${[
+    ["all", "All group events"],
+    ["going", "I’m going"],
+    ["past", "Past"],
+  ]
+    .map(
+      ([value, label]) =>
+        `<button data-event-filter="${value}" class="${eventFilter === value ? "selected" : ""}" aria-pressed="${eventFilter === value}">${label}</button>`,
+    )
+    .join(
+      "",
+    )}</div><span>${events.length} ${events.length === 1 ? "event" : "events"}</span></div><section class="cards event-list" aria-label="Group events">${
+    events
+      .slice(eventPage * 5, eventPage * 5 + 5)
+      .map(card)
+      .join("") ||
+    `<div class="empty-state panel">${icon("calendar")}<h2>${eventFilter === "going" ? "No plans picked yet." : eventFilter === "past" ? "No past events." : "Your grid is clear."}</h2><p>${eventFilter === "going" ? "Tap I’m going on an event to find it here." : "Add an event to start planning together."}</p>${eventFilter === "all" ? '<button class="primary" id="empty-add">Add your first event</button>' : ""}</div>`
+  }</section>${pages > 1 ? `<nav class="pagination" aria-label="Event pages"><button data-page="-1" ${eventPage === 0 ? "disabled" : ""}>${icon("left")} Previous</button><span>${eventPage + 1} / ${pages}</span><button data-page="1" ${eventPage === pages - 1 ? "disabled" : ""}>Next ${icon("right")}</button></nav>` : ""}`;
 }
 function calendar() {
   const year = month.getFullYear(),
@@ -208,19 +273,22 @@ function render() {
     : focus?.dataset?.going
       ? ["going", focus.dataset.going]
       : null;
-  const events = state.events
-    .filter((e) =>
-      showPast ? new Date(e.ends) < new Date() : new Date(e.ends) >= new Date(),
-    )
-    .sort((a, b) => new Date(a.starts) - new Date(b.starts));
-  $("#app").innerHTML = `<main class="shell">
-    <header class="masthead"><div class="top-line"><span class="system-label">DOIN’ / SHARED PLANS</span><div class="account-controls">${token ? `<button id="notifications" class="notification-button" aria-label="Notification settings" title="Notifications">${icon("bell")}</button>` : ""}<button id="account" class="identity">${icon("users")}${token ? esc(state.me.name) : "Join the grid"}</button></div></div><a class="wordmark" href="./" aria-label="The Grid home"><img src="./wordmark.svg" alt="The Grid" width="600" height="81"></a><p class="tagline"><span class="status-dot ${token && !connected ? "offline" : ""}"></span>${token ? (connected ? "YOUR PEOPLE. ONE PLACE." : "RECONNECTING TO YOUR GROUP") : "GOOD PLANS START HERE."}</p></header>
-    <div class="command-bar"><div class="group-info"><span class="group-glyph">${icon("users")}</span><div><h1>${token ? `<button id="group-settings" class="group-name" aria-label="Group settings">${esc(state.group.name)}</button>` : esc(state.group.name)}</h1><p>${token ? state.members.length + " people connected" : "A simpler way to get together"}</p></div></div><button id="invite" class="secondary">${icon("plus")} Invite friends</button></div>
-    ${!token ? '<div class="demo-banner"><span>Sample events. Make a group to start planning.</span><button id="start">Create group <span aria-hidden="true">→</span></button></div>' : ""}
-    <div class="view-toolbar"><nav class="view-tabs" aria-label="View"><button data-view="events" aria-pressed="${view === "events"}" class="${view === "events" ? "selected" : ""}">${icon("grid")} Events</button><button data-view="calendar" aria-pressed="${view === "calendar"}" class="${view === "calendar" ? "selected" : ""}">${icon("calendar")} Calendar</button></nav><button class="primary" id="add">${icon("plus")} Add event</button></div>
-    ${view === "calendar" ? calendar() : `<section aria-label="${showPast ? "Past" : "Upcoming"} events"><div class="section-line"><h2 class="section-heading">${showPast ? "PAST EVENTS" : "UPCOMING EVENTS"}</h2><span>${events.length} ${events.length === 1 ? "plan" : "plans"}</span></div><div class="cards">${events.map(card).join("") || `<div class="empty-state panel">${icon("calendar")}<h2>${showPast ? "No past plans." : "Your grid is clear."}</h2><p>${showPast ? "Your finished events will show up here." : "Add an event. Get your people together."}</p>${showPast ? "" : '<button class="primary" id="empty-add">Add your first event</button>'}</div>`}</div><button id="past" class="past-toggle">${showPast ? "Back to upcoming events" : "Past events"} ${icon("arrow")}</button></section>`}
-    <footer><span class="footer-mark">THE GRID</span><span>Less planning. More living.</span></footer>
-  </main>`;
+  const title = { home: "Home", events: "Your events", calendar: "Calendar" }[
+    view
+  ];
+  $("#app").innerHTML =
+    `<main class="shell dashboard-shell"><header class="app-header"><a class="compact-brand" href="#home" data-view="home" aria-label="The Grid home"><img src="./wordmark.svg" alt="The Grid" width="180" height="26"></a><div class="account-controls">${token ? `<button id="notifications" class="notification-button" aria-label="Notification settings" title="Notifications">${icon("bell")}</button>` : ""}<button id="account" class="identity">${icon("users")}${token ? esc(state.me.name) : "Join group"}</button></div></header><div class="dashboard-group"><button id="group-settings" class="group-name" ${!token ? "disabled" : ""}>${icon("users")} ${esc(state.group.name)}<span class="connection-dot ${token && !connected ? "offline" : ""}"></span></button><button id="invite" class="small-invite">${icon("plus")} Invite friends</button></div><nav class="page-nav" aria-label="Main navigation">${[
+      ["home", "home", "Home"],
+      ["events", "grid", "Your events"],
+      ["calendar", "calendar", "Calendar"],
+    ]
+      .map(
+        ([value, symbol, label]) =>
+          `<a href="#${value}" data-view="${value}" class="${view === value ? "selected" : ""}" ${view === value ? 'aria-current="page"' : ""}>${icon(symbol)}<span>${label}</span></a>`,
+      )
+      .join(
+        "",
+      )}</nav><div class="page-heading"><div><h1>${title}</h1><p>${view === "home" ? "Your plans, at a glance." : view === "events" ? "All the plans shared with your group." : "Find a day. Make a plan."}</p></div><button class="primary" id="add">${icon("plus")} Add event</button></div>${!token ? '<div class="demo-banner"><span>Sample plans. Create your own group.</span><button id="start">Create group →</button></div>' : ""}<div class="page-content" id="page-content">${view === "home" ? dashboard() : view === "calendar" ? calendar() : eventsPage()}</div><footer><span class="footer-mark">THE GRID</span><span>Less planning. More living.</span></footer></main>`;
   bind();
   if (focusedAction)
     document
@@ -270,7 +338,7 @@ function groupDialog() {
       });
       token = result.token;
       localStorage.setItem(storageKey, token);
-      history.replaceState({}, "", appUrl);
+      history.replaceState({}, "", appUrl + "#" + view);
       $("#modal").close();
       await refresh(true);
       toast(inviteCode ? "You’re in." : "Group created. Invite your friends.");
@@ -408,7 +476,9 @@ function addDialog() {
       });
       $("#modal").close();
       view = "events";
-      showPast = false;
+      history.replaceState({}, "", appUrl + "#events");
+      eventFilter = "all";
+      eventPage = 0;
       selectedDay = null;
       await refresh(true);
       toast("Event added.");
@@ -519,9 +589,26 @@ async function quickResponse(button, action) {
 function bind() {
   document.querySelectorAll("[data-view]").forEach(
     (button) =>
+      (button.onclick = (event) => {
+        event.preventDefault();
+        navigate(button.dataset.view);
+      }),
+  );
+  document.querySelectorAll("[data-event-filter]").forEach(
+    (button) =>
       (button.onclick = () => {
-        view = button.dataset.view;
+        eventFilter = button.dataset.eventFilter;
+        eventPage = 0;
+        if (view !== "events") navigate("events");
+        else render();
+      }),
+  );
+  document.querySelectorAll("[data-page]").forEach(
+    (button) =>
+      (button.onclick = () => {
+        eventPage += Number(button.dataset.page);
         render();
+        window.scrollTo({ top: 0, behavior: "instant" });
       }),
   );
   document
@@ -561,12 +648,21 @@ function bind() {
   if ($("#group-settings")) $("#group-settings").onclick = groupDialog;
   if ($("#notifications")) $("#notifications").onclick = notificationDialog;
   if ($("#start")) $("#start").onclick = groupDialog;
-  if ($("#past"))
-    $("#past").onclick = () => {
-      showPast = !showPast;
-      render();
-    };
 }
+function navigate(next) {
+  if (!["home", "events", "calendar"].includes(next)) return;
+  view = next;
+  history.pushState({}, "", appUrl + "#" + next);
+  render();
+  window.scrollTo({ top: 0, behavior: "instant" });
+}
+function syncRoute() {
+  const next = location.hash.slice(1);
+  view = ["home", "events", "calendar"].includes(next) ? next : "home";
+  if (state) render();
+}
+window.addEventListener("popstate", syncRoute);
+window.addEventListener("hashchange", syncRoute);
 await refresh(true);
 if (new URLSearchParams(location.search).has("join")) groupDialog();
 setInterval(() => {
@@ -589,6 +685,6 @@ if ("serviceWorker" in navigator)
   });
 const notifiedEvent = new URLSearchParams(location.search).get("event");
 if (notifiedEvent) {
-  history.replaceState({}, "", appUrl);
+  history.replaceState({}, "", appUrl + "#" + view);
   openNotificationEvent(notifiedEvent);
 }
