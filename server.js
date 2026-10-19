@@ -36,7 +36,7 @@ const server=http.createServer(async(req,res)=>{
  if(!['GET','HEAD'].includes(req.method)) fail('Method not allowed.',405);
  const path=resolve(publicDir,'.'+decodeURIComponent(url.pathname==='/'?'/index.html':url.pathname));if(!path.startsWith(publicDir+'/')) fail('Not found.',404);
  let data;try{data=readFileSync(path);}catch{fail('Not found.',404);}
- res.writeHead(200,{'Content-Type':({'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/manifest+json','.svg':'image/svg+xml','.png':'image/png'})[extname(path)]||'application/octet-stream','X-Content-Type-Options':'nosniff','Referrer-Policy':'same-origin'});res.end(req.method==='HEAD'?undefined:data);
+ res.writeHead(200,{'Content-Type':({'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/manifest+json','.svg':'image/svg+xml','.png':'image/png','.woff2':'font/woff2'})[extname(path)]||'application/octet-stream','X-Content-Type-Options':'nosniff','Referrer-Policy':'same-origin'});res.end(req.method==='HEAD'?undefined:data);
  } catch(e){send({error:e.status?e.message:'Something went wrong. Please try again.'},e.status||500);}
 });
 server.listen(Number(process.env.PORT||3000),'0.0.0.0',()=>console.log(`Plans running on port ${process.env.PORT||3000}`));

@@ -1,1 +1,17 @@
-{"name":"Doin’ — plans with your people","short_name":"Doin’","start_url":"./","scope":"./","display":"standalone","background_color":"#f6f5ef","theme_color":"#f6f5ef","icons":[{"src":"./icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any"}]}
+{
+  "name": "The Grid \u2014 plans with your people",
+  "short_name": "The Grid",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#080d10",
+  "theme_color": "#080d10",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

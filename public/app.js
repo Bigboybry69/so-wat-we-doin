@@ -1,24 +1,478 @@
-import { api as requestApi, appUrl } from './api.js';
-const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const storageKey='doin-token:'+appUrl+':'+(window.DOIN_CONFIG?.supabaseUrl||'local');
-let token=localStorage.getItem(storageKey),state=null,view='board',filter='All plans',month=new Date(),selected=null;
-const cats={Music:['♫','#eadcf9'],Food:['♨','#fbe2c1'],Outdoors:['↗','#dce8cb'],Arts:['✳','#f6d5d3'],Hangout:['☻','#dae5ed']};
-const sample=[['Sunset sounds','Music','The lawn at Riverside Park',17,30],['A little pasta, a lot of catching up','Food','Little Italy · Downtown',19,0],['Take the scenic route','Outdoors','South Mountain trailhead',8,0]];
-function demo(){const now=new Date();now.setDate(now.getDate()+((6-now.getDay()+7)%7||7));return {group:{name:'The good company',id:''},me:{name:'You'},members:[{name:'You'},{name:'Alex'},{name:'Sam'},{name:'Jamie'}],events:sample.map(([title,category,place,h,m],i)=>{const d=new Date(now);d.setDate(d.getDate()+(i===2?1:0));d.setHours(h,m,0,0);return {id:'demo'+i,title,category,place,starts:d.toISOString(),ends:new Date(+d+7200000).toISOString(),author:'Alex',url:'',responses:i===0?[{name:'Alex',vote:1,status:'going',seats:3},{name:'Sam',vote:1,status:'going',seats:0}]:[{name:'Jamie',vote:1,status:'maybe',seats:0}]};})};}
-const api=(path,data)=>requestApi(path,data,token);
-function toast(t){$('#toast').textContent=t;$('#toast').classList.add('show');setTimeout(()=>$('#toast').classList.remove('show'),4000);}
-async function refresh(){if(token){try{state=await api('state');}catch(e){if(/join or create/.test(e.message)){localStorage.removeItem(storageKey);token=null;}else {toast(e.message);if(!state){$('#app').innerHTML='<main style="margin:40px"><h1>Can’t reach your plans just yet.</h1><p>Check your connection and reload to reconnect with your group.</p><button onclick="location.reload()" class="primary">Try again</button></main>';return;}}}}if(!token)state=demo();render();}
-const date=d=>new Date(d).toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});
-const time=d=>new Date(d).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
-const overlaps=e=>state.events.filter(o=>o.id!==e.id&&new Date(o.starts)<new Date(e.ends)&&new Date(o.ends)>new Date(e.starts));
-function card(e){const [symbol,color]=cats[e.category]||cats.Hangout, r=e.responses, mine=r.find(x=>x.mine), going=r.filter(x=>x.status==='going'),seats=going.reduce((n,x)=>n+x.seats,0), votes=r.reduce((n,x)=>n+x.vote,0),conflict=overlaps(e);return `<article class="event-card"><button class="card-art ${e.category.toLowerCase()}" data-open="${e.id}" aria-label="View ${esc(e.title)}"><span class="category" style="background:${color}">${symbol} ${esc(e.category)}</span><span class="art-symbol">${symbol}</span><span class="date-stamp">${new Date(e.starts).toLocaleDateString(undefined,{month:'short'})}<b>${new Date(e.starts).getDate()}</b></span></button><div class="card-body"><div class="eyebrow">${date(e.starts)} <span>·</span> ${time(e.starts)}</div><button class="event-title" data-open="${e.id}">${esc(e.title)}</button><p class="location">⌖ ${esc(e.place)}</p>${conflict.length?'<div class="conflict">↔ Overlaps with '+conflict.length+' other plan'+(conflict.length>1?'s':'')+'</div>':'<div class="clear-slot">A little something to look forward to.</div>'}<div class="card-people"><div class="avatars">${r.slice(0,3).map(x=>`<span title="${esc(x.name)}">${esc(x.name[0])}</span>`).join('')}</div><span>${going.length} going${seats?' · '+seats+' seats offered':''}</span></div><div class="card-actions"><button class="vote ${mine?.vote?'active':''}" data-vote="${e.id}">↑ <b>${votes}</b> <span>Vote for this</span></button><button class="rsvp ${mine?.status==='going'?'active':''}" data-open="${e.id}">${mine?.status==='going'?'✓ Going':'Who’s in?'} ↗</button></div></div></article>`;}
-function calendar(){const y=month.getFullYear(),m=month.getMonth(),first=new Date(y,m,1).getDay(),days=new Date(y,m+1,0).getDate();return `<div class="calendar-top"><h2>${month.toLocaleDateString(undefined,{month:'long',year:'numeric'})}</h2><div><button data-month="-1" aria-label="Previous month">←</button><button data-month="1" aria-label="Next month">→</button></div></div><div class="calendar-grid">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>`<div class="day-label">${d}</div>`).join('')}${Array.from({length:first},()=>'<div class="day empty"></div>').join('')}${Array.from({length:days},(_,i)=>{const es=state.events.filter(e=>{const d=new Date(e.starts);return d.getFullYear()===y&&d.getMonth()===m&&d.getDate()===i+1;});return `<div class="day"><span>${i+1}</span>${es.map(e=>`<button style="background:${cats[e.category][1]}" data-open="${e.id}">${time(e.starts)} ${esc(e.title)}</button>`).join('')}</div>`;}).join('')}</div>`;}
-function render(){const events=state.events.filter(e=>(filter==='All plans'||e.category===filter)&&(!selected||new Date(e.starts).toDateString()===selected));$('#app').innerHTML=`<aside class="sidebar"><a class="logo" href="./">doin<span>’</span><i>✳</i></a><div class="group-label">YOUR LITTLE CORNER</div><button class="group-button" id="group"><span class="group-icon">☻</span><span>${esc(state.group.name)}<small>${state.members.length} people · endless possibilities</small></span></button><nav><button data-view="board" class="${view==='board'?'chosen':''}">▦ <span>The plan board</span><b>${state.events.length}</b></button><button data-view="calendar" class="${view==='calendar'?'chosen':''}">▤ <span>Our calendar</span></button><button data-view="rides" class="${view==='rides'?'chosen':''}">↗ <span>Carpool crew</span></button></nav><div class="sidebar-note"><span>✳</span><h3>Less “we should.”<br>More “see you there.”</h3><p>Good times start with<br>a little plan.</p></div><button id="invite" class="invite">＋ Invite your people</button><div class="profile"><span>${esc(state.me.name[0])}</span><div>${esc(state.me.name)}<small>${token?'Good company member':'Exploring the demo'}</small></div><button id="account" aria-label="Group and account settings">⚙</button></div></aside><main><header><span>THE GROUP CHAT, BUT WITH A PLAN.</span><div class="header-right"><span class="live-dot"></span>${token?'Your shared space':'Interactive preview'} <button id="mobile-invite">Invite ↗</button></div></header>${!token?'<div class="demo-banner"><span>You’re looking at sample plans. Make a space for your own people.</span><button id="start">Create your group ↗</button></div>':''}<section class="intro"><div class="eyebrow">GOOD PLANS. BETTER COMPANY.</div><div class="title-row"><div><h1>${view==='calendar'?'Make room for good times.':view==='rides'?'Better when we go together.':'So, what are we doin’?'}</h1><p>${view==='rides'?'Find your people. Share the ride. Make the memories.':'Drop an idea. Pick a favorite. Get out there together.'}</p></div><button class="primary" id="add">＋ Add a plan</button></div></section><section class="week-strip"><div class="week-copy"><span>ON THE HORIZON</span><b>A good week<br>starts here. <i>↗</i></b></div>${Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()+i);const n=state.events.filter(e=>new Date(e.starts).toDateString()===d.toDateString()).length;return `<button class="week-day ${selected===d.toDateString()?'selected':''} ${i===0?'today':''}" data-day="${d.toDateString()}"><span>${i===0?'TODAY':d.toLocaleDateString(undefined,{weekday:'short'}).toUpperCase()}</span><b>${d.getDate()}</b><small>${n?'●'.repeat(Math.min(n,3)):'·'}</small></button>`;}).join('')}</section>${view==='board'?`<div class="board-toolbar"><div class="filters">${['All plans',...Object.keys(cats)].map(c=>`<button class="${filter===c?'selected':''}" data-filter="${c}">${c==='All plans'?'✳':cats[c][0]} ${c}</button>`).join('')}</div><span>${events.length} plans in the mix ${selected?'<button id="clear-day">Clear date ×</button>':''}</span></div><section class="cards">${events.map(card).join('')||'<div class="empty-state"><span>✳</span><h2>A little room for spontaneity.</h2><p>Add a plan and give your people something to look forward to.</p><button class="primary" id="empty-add">＋ Add a plan</button></div>'}</section>`:view==='calendar'?calendar():`<section class="rides">${state.events.map(e=>{const drivers=e.responses.filter(r=>r.status==='going'&&r.seats>0),passengers=e.responses.filter(r=>r.status==='going'&&!r.seats);return `<article><span class="eyebrow">${date(e.starts)} · ${time(e.starts)}</span><h2>${esc(e.title)}</h2><p>${esc(e.place)}</p><div>${drivers.length?drivers.map(r=>`<p>↗ <b>${esc(r.name)}</b> offers ${r.seats} passenger seat${r.seats>1?'s':''}</p>`).join(''):'<p>No drivers yet. Be the first to offer a ride.</p>'}</div><p>${passengers.length?passengers.map(r=>esc(r.name)).join(', ')+' going without a ride offer.':'No passengers yet.'}</p><button data-open="${e.id}">Update my attendance & ride →</button></article>`;}).join('')||'<p>Add an event to start planning a carpool.</p>'}</section>`}<footer><span>MAKE PLANS. MAKE MEMORIES.</span><span>A little less scrolling, a little more living. ✳</span></footer></main>`;bind();}
-function modal(html){$('#modal').innerHTML=`<button class="close" aria-label="Close dialog">×</button>${html}`;$('#modal').showModal();$('.close').onclick=()=>$('#modal').close();}
-function groupDialog(){const invite=new URLSearchParams(location.search).get('join');modal(`<div class="eyebrow">YOUR PEOPLE. YOUR PLANS.</div><h2>${invite?'You’re invited.':'Good times start here.'}</h2><p>${invite?'Join your friends’ shared calendar.':'Create a private group, then share its invite with your friends.'}</p><form id="group-form"><label>Your name<input name="name" maxlength="40" required placeholder="What should we call you?"></label>${invite?'':`<label>Group name<input name="group" maxlength="120" required placeholder="The good company"></label>`}<button class="primary">${invite?'Join the group':'Create our group'} ↗</button><p class="form-error" role="alert"></p></form>${token?'<button id="leave" class="text-button">Leave this group on this device</button>':''}`);$('#group-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));try{const r=await api(invite?'join':'groups',{...data,invite});token=r.token;localStorage.setItem(storageKey,token);history.replaceState({},'',appUrl);$('#modal').close();await refresh();toast('Your people have a place to make plans.');}catch(e){$('.form-error').textContent=e.message;}};if($('#leave'))$('#leave').onclick=()=>{localStorage.removeItem(storageKey);token=null;$('#modal').close();refresh();};}
-async function invite(){if(!token)return groupDialog();const url=appUrl+'?join='+state.group.id;try{if(navigator.share)await navigator.share({title:'Come make plans with us',url});else{await navigator.clipboard.writeText(url);toast('Invite link copied. Send it to your people.');}}catch(e){if(e.name==='AbortError')return;modal(`<h2>Invite your people</h2><p>Anyone with this link can join. Share it only with your group.</p><input aria-label="Group invite link" readonly value="${esc(url)}">`);}}
-function addDialog(){if(!token)return groupDialog();const now=new Date();now.setMinutes(0,0,0);const local=d=>new Date(+d-d.getTimezoneOffset()*60000).toISOString().slice(0,16);modal(`<div class="eyebrow">PUT SOMETHING GOOD ON THE CALENDAR.</div><h2>What’s the plan?</h2><form id="event-form"><label>Found something? Paste the link<input name="url" type="url" placeholder="https://instagram.com/… or any event website"></label><p class="hint">We’ll keep the source with your card. Confirm the details below—social sites don’t always share them.</p><label>Give it a name<input name="title" required maxlength="120" placeholder="Sunset sounds in the park"></label><div class="form-row"><label>Starts<input name="starts" type="datetime-local" value="${local(now)}" required></label><label>Ends<input name="ends" type="datetime-local" value="${local(new Date(+now+7200000))}" required></label></div><label>Where are we meeting?<input name="place" required maxlength="120" placeholder="Venue, address, or meeting point"></label><label>The vibe<select name="category">${Object.keys(cats).map(c=>`<option>${c}</option>`).join('')}</select></label><button class="primary">Add to our plans ↗</button><p class="form-error" role="alert"></p></form>`);$('#event-form').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));b.starts=new Date(b.starts).toISOString();b.ends=new Date(b.ends).toISOString();try{await api('events',b);$('#modal').close();selected=null;filter='All plans';view='board';await refresh();toast('A new plan is in the mix.');}catch(e){$('.form-error').textContent=e.message;}};}
-async function respond(e,changes){if(!token){groupDialog();return;}const r=e.responses.find(x=>x.mine)||{vote:0,status:'maybe',seats:0};await api('respond',{event:e.id,vote:r.vote,status:r.status,seats:r.seats,...changes});await refresh();}
-function detail(id){const e=state.events.find(e=>e.id===id);if(!e)return;const mine=e.responses.find(r=>r.mine)||{status:'maybe',seats:0};modal(`<span class="category" style="background:${cats[e.category][1]}">${cats[e.category][0]} ${esc(e.category)}</span><h2>${esc(e.title)}</h2><p>${date(e.starts)} · ${time(e.starts)} – ${time(e.ends)}</p><p>⌖ ${esc(e.place)}</p>${e.url?`<a href="${esc(e.url)}" target="_blank" rel="noopener noreferrer" class="source-link">View the original event ↗</a>`:''}${overlaps(e).length?`<div class="overlap-box"><b>Two good things, one time slot.</b><p>Also happening: ${overlaps(e).map(o=>esc(o.title)).join(', ')}. Vote on your favorite to help the group decide.</p></div>`:''}<form id="rsvp-form"><label>Count me…<select name="status"><option value="going" ${mine.status==='going'?'selected':''}>In — I’m going</option><option value="maybe" ${mine.status==='maybe'?'selected':''}>Maybe — still deciding</option><option value="out" ${mine.status==='out'?'selected':''}>Out — next time</option></select></label><label>Can you drive? Passenger seats you can offer<select name="seats">${Array.from({length:9},(_,n)=>`<option value="${n}" ${mine.seats===n?'selected':''}>${n===0?'Not offering a ride':n+' passenger seat'+(n>1?'s':'')}</option>`).join('')}</select></label><p class="hint">Ride offers apply when you’re going. Coordinate pickup with your group; seats aren’t reserved here.</p><button class="primary">Save my response ↗</button><p class="form-error" role="alert"></p></form><h3>The crew</h3><div class="crew">${e.responses.map(r=>`<p><b>${esc(r.name)}</b><span>${r.status==='going'?'Going':r.status==='maybe'?'Maybe':'Not going'}${r.seats?' · '+r.seats+' seats offered':''}${r.vote?' · ↑ Voted':''}</span></p>`).join('')||'<p>No responses yet. Make the first move.</p>'}</div><p class="hint">Added by ${esc(e.author)}</p>`);$('#rsvp-form').onsubmit=async ev=>{ev.preventDefault();if(!token){$('#modal').close();groupDialog();return;}try{const b=Object.fromEntries(new FormData(ev.target));await respond(e,{status:b.status,seats:b.status==='going'?Number(b.seats):0});$('#modal').close();toast('Your crew is in the loop.');}catch(err){$('.form-error').textContent=err.message;}};}
-function bind(){document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{view=b.dataset.view;selected=null;render();});document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{filter=b.dataset.filter;render();});document.querySelectorAll('[data-day]').forEach(b=>b.onclick=()=>{selected=selected===b.dataset.day?null:b.dataset.day;view='board';render();});document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>detail(b.dataset.open));document.querySelectorAll('[data-vote]').forEach(b=>b.onclick=async()=>{const e=state.events.find(e=>e.id===b.dataset.vote);try{await respond(e,{vote:e.responses.find(r=>r.mine)?.vote?0:1});}catch(err){toast(err.message);}});document.querySelectorAll('[data-month]').forEach(b=>b.onclick=()=>{month=new Date(month.getFullYear(),month.getMonth()+Number(b.dataset.month),1);render();});['add','empty-add'].forEach(id=>{if($('#'+id))$('#'+id).onclick=addDialog;});['invite','mobile-invite'].forEach(id=>$('#'+id).onclick=invite);['start','group','account'].forEach(id=>{if($('#'+id))$('#'+id).onclick=groupDialog;});if($('#clear-day'))$('#clear-day').onclick=()=>{selected=null;render();};}
-await refresh();if(new URLSearchParams(location.search).has('join'))groupDialog();setInterval(()=>{if(token&&!$('#modal').open)refresh();},15000);
+import { api as requestApi, appUrl } from "./api.js";
+
+const $ = (selector) => document.querySelector(selector);
+const esc = (value) =>
+  String(value ?? "").replace(
+    /[&<>"']/g,
+    (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+        c
+      ],
+  );
+const storageKey =
+  "doin-token:" + appUrl + ":" + (window.DOIN_CONFIG?.supabaseUrl || "local");
+let token = localStorage.getItem(storageKey);
+let state,
+  view = "events",
+  month = new Date(),
+  selectedDay = null,
+  showPast = false,
+  busy = false,
+  connected = false;
+let refreshNumber = 0;
+const paths = {
+  plus: "M12 5v14M5 12h14",
+  check: "m5 12 4 4L19 6",
+  close: "m6 6 12 12M6 18 18 6",
+  calendar: "M8 3v4M16 3v4M4 10h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Z",
+  grid: "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z",
+  users:
+    "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M16 3a4 4 0 0 1 0 8M22 21v-2a4 4 0 0 0-3-3.87M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z",
+  pin: "M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0ZM15 10a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z",
+  arrow: "M5 12h14m-6-6 6 6-6 6",
+  left: "m14 6-6 6 6 6",
+  right: "m10 6 6 6-6 6",
+  vote: "m6 10 6-6 6 6M12 4v16",
+  link: "M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-2 2M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l2-2",
+  car: "m5 7 2-4h10l2 4M3 11l2-4h14l2 4v7H3zM5 18v3M19 18v3M6 12h2M16 12h2",
+  clock: "M12 7v5l3 2M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z",
+  music:
+    "M9 18V5l11-2v13M9 8l11-2M9 18c0 2-2 3-4 3s-3-1-3-2 2-3 4-3 3 1 3 2ZM20 16c0 2-2 3-4 3s-3-1-3-2 2-3 4-3 3 1 3 2Z",
+  outdoors: "m2 20 7-13 4 7 3-5 6 11ZM7 11l2 2 2-2",
+  food: "M4 3v7a3 3 0 0 0 6 0V3M7 3v18M20 21V3c-5 0-6 10 0 10",
+  arts: "m12 3 2.6 5.4 6 .8-4.3 4.2 1 6-5.3-2.8-5.3 2.8 1-6L2.4 9.2l6-.8Z",
+};
+const icon = (name, cls = "") =>
+  `<svg class="icon ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${paths[name] || paths.users}"/></svg>`;
+const categories = ["Music", "Food", "Outdoors", "Arts", "Hangout"];
+const date = (value) =>
+  new Date(value).toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+const time = (value) =>
+  new Date(value).toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+const dayKey = (value) => new Date(value).toDateString();
+const api = (path, data) => requestApi(path, data, token);
+
+function demo() {
+  const saturday = new Date();
+  saturday.setDate(saturday.getDate() + ((6 - saturday.getDay() + 7) % 7 || 7));
+  const samples = [
+    ["Sunset sounds", "Music", "Riverside Park", 17, 0],
+    ["Dinner with the crew", "Food", "Little Italy · Downtown", 18, 0],
+    ["Take the scenic route", "Outdoors", "South Mountain trailhead", 8, 1],
+  ];
+  return {
+    group: { name: "Your next adventure", id: "" },
+    me: { name: "You" },
+    members: [{ name: "You" }, { name: "Alex" }, { name: "Sam" }],
+    events: samples.map(([title, category, place, hour, offset], i) => {
+      const start = new Date(saturday);
+      start.setDate(start.getDate() + offset);
+      start.setHours(hour, 0, 0, 0);
+      return {
+        id: "demo" + i,
+        title,
+        category,
+        place,
+        starts: start.toISOString(),
+        ends: new Date(+start + 7200000).toISOString(),
+        author: "Alex",
+        url: "",
+        responses:
+          i === 0
+            ? [
+                { name: "Alex", vote: 1, status: "going", seats: 3 },
+                { name: "Sam", vote: 1, status: "going", seats: 0 },
+              ]
+            : [{ name: "Sam", vote: 1, status: "maybe", seats: 0 }],
+      };
+    }),
+  };
+}
+let toastTimer;
+function toast(message) {
+  clearTimeout(toastTimer);
+  $("#toast").textContent = message;
+  $("#toast").classList.add("show");
+  toastTimer = setTimeout(() => $("#toast").classList.remove("show"), 4000);
+}
+async function refresh(force = false) {
+  const number = ++refreshNumber;
+  if (token) {
+    try {
+      const next = await api("state");
+      if (number !== refreshNumber) return;
+      const changed =
+        JSON.stringify(next) !== JSON.stringify(state) || !connected;
+      state = next;
+      connected = true;
+      if (changed || force) render();
+      return;
+    } catch (error) {
+      if (number !== refreshNumber) return;
+      if (/join or create/.test(error.message)) {
+        localStorage.removeItem(storageKey);
+        token = null;
+      } else {
+        connected = false;
+        toast(error.message);
+        if (state) {
+          render();
+          return;
+        }
+        $("#app").innerHTML =
+          `<main class="connection-error panel"><p class="eyebrow">CONNECTION LOST</p><h1>Your plans are still there.</h1><p>Check your connection and try again.</p><button class="primary" id="retry">Reconnect ${icon("arrow")}</button></main>`;
+        $("#retry").onclick = () => refresh(true);
+        return;
+      }
+    }
+  }
+  connected = false;
+  state = demo();
+  render();
+}
+const overlaps = (event) =>
+  state.events.filter(
+    (other) =>
+      other.id !== event.id &&
+      new Date(other.starts) < new Date(event.ends) &&
+      new Date(other.ends) > new Date(event.starts),
+  );
+function card(event) {
+  const mine = event.responses.find((r) => r.mine);
+  const going = event.responses.filter((r) => r.status === "going");
+  const seats = going.reduce((sum, r) => sum + r.seats, 0);
+  const votes = event.responses.reduce((sum, r) => sum + r.vote, 0);
+  const conflict = overlaps(event).length;
+  const start = new Date(event.starts);
+  return `<article class="event-card panel">
+    <div class="card-top"><span class="category">${icon(event.category.toLowerCase())}${esc(event.category)}</span>${conflict ? '<span class="conflict">Time clash</span>' : '<span class="card-signal" aria-hidden="true"></span>'}</div>
+    <div class="event-heading"><div class="date-tile"><span>${start.toLocaleDateString(undefined, { month: "short" })}</span><b>${start.getDate()}</b></div><div><p class="event-time">${start.toLocaleDateString(undefined, { weekday: "long" })} <span> / </span> ${time(event.starts)}</p><h3><button data-open="${event.id}">${esc(event.title)}</button></h3></div></div>
+    <p class="location">${icon("pin")}${esc(event.place)}</p>
+    <div class="attendance"><div class="avatars">${
+      going
+        .slice(0, 3)
+        .map(
+          (r) =>
+            `<span title="${esc(r.name)}">${esc(r.name.slice(0, 1))}</span>`,
+        )
+        .join("") || `<span class="no-attendees">${icon("users")}</span>`
+    }</div><span>${going.length ? going.length + " going" : "Who’s in?"}</span>${seats ? `<span class="ride-count">${icon("car")}${seats} seats</span>` : ""}</div>
+    <div class="card-actions"><button class="vote ${mine?.vote ? "active" : ""}" data-vote="${event.id}" aria-pressed="${Boolean(mine?.vote)}" aria-label="Vote for ${esc(event.title)}">${icon("vote")} Vote <b>${votes}</b></button><button class="going-button ${mine?.status === "going" ? "active" : ""}" data-going="${event.id}" aria-pressed="${mine?.status === "going"}">${icon(mine?.status === "going" ? "check" : "plus")}${mine?.status === "going" ? "Going" : "I’m going"}</button></div>
+    <button class="details-button" data-open="${event.id}">Details & rides ${icon("arrow")}</button>
+  </article>`;
+}
+function calendar() {
+  const year = month.getFullYear(),
+    m = month.getMonth(),
+    first = new Date(year, m, 1).getDay(),
+    days = new Date(year, m + 1, 0).getDate();
+  const events = selectedDay
+    ? state.events.filter((e) => dayKey(e.starts) === selectedDay)
+    : [];
+  return `<section class="calendar panel"><div class="calendar-top"><h2>${month.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</h2><div><button data-month="-1" aria-label="Previous month">${icon("left")}</button><button data-month="1" aria-label="Next month">${icon("right")}</button></div></div><div class="calendar-grid">${["S", "M", "T", "W", "T", "F", "S"].map((d) => `<span class="day-label">${d}</span>`).join("")}${'<div class="blank-day"></div>'.repeat(first)}${Array.from(
+    { length: days },
+    (_, i) => {
+      const key = new Date(year, m, i + 1).toDateString();
+      const dayEvents = state.events.filter((e) => dayKey(e.starts) === key);
+      return `<button class="day ${key === selectedDay ? "selected" : ""} ${key === dayKey(new Date()) ? "today" : ""}" data-day="${key}" aria-label="${date(new Date(year, m, i + 1))}, ${dayEvents.length} events" aria-pressed="${key === selectedDay}"><span>${i + 1}</span><div class="calendar-event-names">${dayEvents
+        .slice(0, 2)
+        .map((e) => `<span>${esc(e.title)}</span>`)
+        .join(
+          "",
+        )}${dayEvents.length > 2 ? `<small>+${dayEvents.length - 2} more</small>` : ""}</div><span class="day-dots">${dayEvents
+        .slice(0, 3)
+        .map(() => "<i></i>")
+        .join("")}</span></button>`;
+    },
+  ).join(
+    "",
+  )}</div><p class="calendar-hint">Select a day to see its events.</p></section>${selectedDay ? `<section class="day-events"><h2 class="section-heading">${date(selectedDay)}</h2><div class="cards">${events.map(card).join("") || '<p class="empty-day">No plans this day. Room for something good.</p>'}</div></section>` : ""}`;
+}
+function render() {
+  const focus = document.activeElement;
+  const focusedAction = focus?.dataset?.vote
+    ? ["vote", focus.dataset.vote]
+    : focus?.dataset?.going
+      ? ["going", focus.dataset.going]
+      : null;
+  const events = state.events
+    .filter((e) =>
+      showPast ? new Date(e.ends) < new Date() : new Date(e.ends) >= new Date(),
+    )
+    .sort((a, b) => new Date(a.starts) - new Date(b.starts));
+  $("#app").innerHTML = `<main class="shell">
+    <header class="masthead"><div class="top-line"><span class="system-label">DOIN’ / SHARED PLANS</span><button id="account" class="identity">${icon("users")}${token ? esc(state.me.name) : "Join the grid"}</button></div><a class="wordmark" href="./" aria-label="The Grid home"><img src="./wordmark.svg" alt="The Grid" width="600" height="81"></a><p class="tagline"><span class="status-dot ${token && !connected ? "offline" : ""}"></span>${token ? (connected ? "YOUR PEOPLE. ONE PLACE." : "RECONNECTING TO YOUR GROUP") : "GOOD PLANS START HERE."}</p></header>
+    <div class="command-bar"><div class="group-info"><span class="group-glyph">${icon("users")}</span><div><h1>${esc(state.group.name)}</h1><p>${token ? state.members.length + " people connected" : "A simpler way to get together"}</p></div></div><button id="invite" class="secondary">${icon("plus")} Invite friends</button></div>
+    ${!token ? '<div class="demo-banner"><span>Sample events. Make a group to start planning.</span><button id="start">Create group <span aria-hidden="true">→</span></button></div>' : ""}
+    <div class="view-toolbar"><nav class="view-tabs" aria-label="View"><button data-view="events" aria-pressed="${view === "events"}" class="${view === "events" ? "selected" : ""}">${icon("grid")} Events</button><button data-view="calendar" aria-pressed="${view === "calendar"}" class="${view === "calendar" ? "selected" : ""}">${icon("calendar")} Calendar</button></nav><button class="primary" id="add">${icon("plus")} Add event</button></div>
+    ${view === "calendar" ? calendar() : `<section aria-label="${showPast ? "Past" : "Upcoming"} events"><div class="section-line"><h2 class="section-heading">${showPast ? "PAST EVENTS" : "UPCOMING EVENTS"}</h2><span>${events.length} ${events.length === 1 ? "plan" : "plans"}</span></div><div class="cards">${events.map(card).join("") || `<div class="empty-state panel">${icon("calendar")}<h2>${showPast ? "No past plans." : "Your grid is clear."}</h2><p>${showPast ? "Your finished events will show up here." : "Add an event. Get your people together."}</p>${showPast ? "" : '<button class="primary" id="empty-add">Add your first event</button>'}</div>`}</div><button id="past" class="past-toggle">${showPast ? "Back to upcoming events" : "Past events"} ${icon("arrow")}</button></section>`}
+    <footer><span class="footer-mark">THE GRID</span><span>Less planning. More living.</span></footer>
+  </main>`;
+  bind();
+  if (focusedAction)
+    document
+      .querySelector(`[data-${focusedAction[0]}="${focusedAction[1]}"]`)
+      ?.focus({ preventScroll: true });
+}
+function modal(html) {
+  const dialog = $("#modal");
+  dialog.innerHTML = `<button class="close" aria-label="Close dialog">${icon("close")}</button>${html}`;
+  if (!dialog.open) dialog.showModal();
+  $(".close").onclick = () => dialog.close();
+}
+function groupDialog() {
+  const inviteCode = new URLSearchParams(location.search).get("join");
+  if (token && !inviteCode) {
+    modal(
+      `<p class="eyebrow">YOUR GROUP</p><h2>${esc(state.group.name)}</h2><p>You're connected as <strong>${esc(state.me.name)}</strong>.</p><div class="member-list">${state.members.map((m) => `<span>${esc(m.name)}</span>`).join("")}</div><button id="share-group" class="primary">${icon("plus")} Invite friends</button><button id="leave" class="text-button">Leave this group on this device</button><p class="hint">Leaving doesn’t delete the group. Keep an invite link if you want to rejoin.</p>`,
+    );
+    $("#share-group").onclick = invite;
+    $("#leave").onclick = () => {
+      localStorage.removeItem(storageKey);
+      token = null;
+      $("#modal").close();
+      refresh(true);
+    };
+    return;
+  }
+  modal(
+    `<p class="eyebrow">WELCOME TO THE GRID</p><h2>${inviteCode ? "Your people are here." : "Start with your people."}</h2><p>${inviteCode ? "Enter your name to join their plans." : "One group for events, votes, and rides."}</p><form id="group-form"><label>Your name<input name="name" autocomplete="given-name" maxlength="40" required placeholder="Your name"></label>${inviteCode ? "" : '<label>Group name<input name="group" maxlength="120" required placeholder="The weekend crew"></label>'}<button class="primary">${inviteCode ? "Join group" : "Create group"} ${icon("arrow")}</button><p class="form-error" role="alert"></p></form>`,
+  );
+  $("#group-form").onsubmit = async (event) => {
+    event.preventDefault();
+    const button = event.target.querySelector("button");
+    button.disabled = true;
+    try {
+      const data = Object.fromEntries(new FormData(event.target));
+      const result = await api(inviteCode ? "join" : "groups", {
+        ...data,
+        invite: inviteCode,
+      });
+      token = result.token;
+      localStorage.setItem(storageKey, token);
+      history.replaceState({}, "", appUrl);
+      $("#modal").close();
+      await refresh(true);
+      toast(inviteCode ? "You’re in." : "Group created. Invite your friends.");
+    } catch (error) {
+      $(".form-error").textContent = error.message;
+      button.disabled = false;
+    }
+  };
+}
+async function invite() {
+  if (!token) return groupDialog();
+  const url = appUrl + "?join=" + state.group.id;
+  try {
+    if (navigator.share)
+      await navigator.share({ title: "Join our plans on The Grid", url });
+    else {
+      await navigator.clipboard.writeText(url);
+      toast("Invite link copied. Send it to your friends.");
+    }
+  } catch (error) {
+    if (error.name === "AbortError") return;
+    modal(
+      `<p class="eyebrow">BRING YOUR PEOPLE</p><h2>Invite friends</h2><p>Copy this link and send it to your group.</p><input id="invite-link" aria-label="Group invite link" readonly value="${esc(url)}"><p class="hint">Anyone with this link can join. Keep it within your group.</p>`,
+    );
+    $("#invite-link").onclick = (event) => event.target.select();
+  }
+}
+function addDialog() {
+  if (!token) return groupDialog();
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(18, 0, 0, 0);
+  const local = (value) =>
+    new Date(+value - value.getTimezoneOffset() * 60000)
+      .toISOString()
+      .slice(0, 16);
+  modal(
+    `<p class="eyebrow">NEW EVENT</p><h2>What’s the plan?</h2><form id="event-form"><label>Event link <span class="optional">optional</span><input name="url" type="url" maxlength="2048" placeholder="Paste a social or website link"></label><label>Event name<input name="title" required maxlength="120" placeholder="What are we doing?"></label><label>When<input name="starts" type="datetime-local" value="${local(tomorrow)}" required></label><label>Where<input name="place" required maxlength="120" placeholder="Venue or meeting spot"></label><details class="more-options"><summary>More options</summary><label>Ends <span class="optional">defaults to 2 hours later</span><input name="ends" type="datetime-local"></label><label>Category<select name="category">${["Hangout", ...categories.filter((c) => c !== "Hangout")].map((c) => `<option>${c}</option>`).join("")}</select></label></details><p class="hint">Links are saved with your event. Enter its details above.</p><button class="primary">Add event ${icon("arrow")}</button><p class="form-error" role="alert"></p></form>`,
+  );
+  $("#event-form").onsubmit = async (event) => {
+    event.preventDefault();
+    const button = event.target.querySelector("button");
+    button.disabled = true;
+    try {
+      const data = Object.fromEntries(new FormData(event.target));
+      const start = new Date(data.starts),
+        end = data.ends ? new Date(data.ends) : new Date(+start + 7200000);
+      if (!Number.isFinite(+start) || !Number.isFinite(+end) || end <= start)
+        throw new Error("End time must be after the start time.");
+      await api("events", {
+        ...data,
+        starts: start.toISOString(),
+        ends: end.toISOString(),
+      });
+      $("#modal").close();
+      view = "events";
+      showPast = false;
+      selectedDay = null;
+      await refresh(true);
+      toast("Event added.");
+    } catch (error) {
+      $(".form-error").textContent = error.message;
+      button.disabled = false;
+    }
+  };
+}
+async function respond(event, changes) {
+  if (!token) {
+    groupDialog();
+    return;
+  }
+  const mine = event.responses.find((r) => r.mine) || {
+    vote: 0,
+    status: "maybe",
+    seats: 0,
+  };
+  await api("respond", {
+    event: event.id,
+    vote: mine.vote,
+    status: mine.status,
+    seats: mine.seats,
+    ...changes,
+  });
+  await refresh(true);
+}
+function detail(id) {
+  const event = state.events.find((e) => e.id === id);
+  if (!event) return;
+  const mine = event.responses.find((r) => r.mine) || {
+    status: "maybe",
+    seats: 0,
+  };
+  const clashes = overlaps(event);
+  const drivers = event.responses.filter(
+    (r) => r.status === "going" && r.seats > 0,
+  );
+  const passengers = event.responses.filter(
+    (r) => r.status === "going" && !r.seats,
+  );
+  modal(
+    `<p class="eyebrow">EVENT DETAILS</p><h2>${esc(event.title)}</h2><p class="detail-line">${icon("calendar")}${date(event.starts)} · ${time(event.starts)} – ${time(event.ends)}${dayKey(event.starts) !== dayKey(event.ends) ? " (" + date(event.ends) + ")" : ""}</p><p class="detail-line">${icon("pin")}${esc(event.place)}</p>${event.url ? `<a class="source-link" href="${esc(event.url)}" target="_blank" rel="noopener noreferrer">${icon("link")} Open original event ${icon("arrow")}</a>` : ""}${clashes.length ? `<div class="overlap-box"><b>Same time as another plan</b><p>${clashes.map((e) => esc(e.title)).join(", ")}. Vote for your favorite.</p></div>` : ""}<form id="rsvp-form"><label>Are you going?<select name="status"><option value="going" ${mine.status === "going" ? "selected" : ""}>Going</option><option value="maybe" ${mine.status === "maybe" ? "selected" : ""}>Maybe</option><option value="out" ${mine.status === "out" ? "selected" : ""}>Can’t make it</option></select></label><label>Can you offer a ride?<select name="seats">${Array.from({ length: 9 }, (_, n) => `<option value="${n}" ${mine.seats === n ? "selected" : ""}>${n ? n + " passenger seat" + (n > 1 ? "s" : "") : "Not offering a ride"}</option>`).join("")}</select></label><button class="primary">Save ${icon("check")}</button><p class="form-error" role="alert"></p></form><section class="detail-crew"><h3>Who's going</h3>${
+      event.responses
+        .filter((r) => r.status !== "out")
+        .map(
+          (r) =>
+            `<div class="crew-person"><span>${esc(r.name)}</span><span>${r.status === "going" ? "Going" : "Maybe"}${r.seats ? " · " + r.seats + " seats" : ""}</span></div>`,
+        )
+        .join("") || '<p class="hint">No responses yet.</p>'
+    }</section><details class="ride-details"><summary>${icon("car")} Carpool details</summary>${drivers.length ? drivers.map((r) => `<p><strong>${esc(r.name)}</strong> offers ${r.seats} passenger seats.</p>`).join("") : "<p>No ride offers yet.</p>"}${passengers.length ? `<p>Going without a ride offer: ${passengers.map((r) => esc(r.name)).join(", ")}.</p>` : ""}<p class="hint">Arrange pickups with your group. Seats aren’t reserved here.</p></details>`,
+  );
+  const statusSelect = $("#rsvp-form [name=status]"),
+    seatsSelect = $("#rsvp-form [name=seats]");
+  const syncSeats = () => {
+    seatsSelect.disabled = statusSelect.value !== "going";
+    if (seatsSelect.disabled) seatsSelect.value = "0";
+  };
+  statusSelect.onchange = syncSeats;
+  syncSeats();
+  $("#rsvp-form").onsubmit = async (submitted) => {
+    submitted.preventDefault();
+    if (!token) {
+      groupDialog();
+      return;
+    }
+    const button = submitted.target.querySelector("button");
+    button.disabled = true;
+    try {
+      const data = Object.fromEntries(new FormData(submitted.target));
+      await respond(event, {
+        status: data.status,
+        seats: data.status === "going" ? Number(data.seats) : 0,
+      });
+      $("#modal").close();
+      toast("Response saved.");
+    } catch (error) {
+      $(".form-error").textContent = error.message;
+      button.disabled = false;
+    }
+  };
+}
+async function quickResponse(button, action) {
+  if (busy) return;
+  if (!token) {
+    groupDialog();
+    return;
+  }
+  const event = state.events.find((e) => e.id === button.dataset[action]);
+  const mine = event.responses.find((r) => r.mine);
+  busy = true;
+  button.disabled = true;
+  try {
+    await respond(
+      event,
+      action === "vote"
+        ? { vote: mine?.vote ? 0 : 1 }
+        : { status: mine?.status === "going" ? "maybe" : "going", seats: 0 },
+    );
+  } catch (error) {
+    toast(error.message);
+    button.disabled = false;
+  } finally {
+    busy = false;
+  }
+}
+function bind() {
+  document.querySelectorAll("[data-view]").forEach(
+    (button) =>
+      (button.onclick = () => {
+        view = button.dataset.view;
+        render();
+      }),
+  );
+  document
+    .querySelectorAll("[data-open]")
+    .forEach((button) => (button.onclick = () => detail(button.dataset.open)));
+  ["vote", "going"].forEach((action) =>
+    document
+      .querySelectorAll(`[data-${action}]`)
+      .forEach(
+        (button) => (button.onclick = () => quickResponse(button, action)),
+      ),
+  );
+  document.querySelectorAll("[data-month]").forEach(
+    (button) =>
+      (button.onclick = () => {
+        month = new Date(
+          month.getFullYear(),
+          month.getMonth() + Number(button.dataset.month),
+          1,
+        );
+        selectedDay = null;
+        render();
+      }),
+  );
+  document.querySelectorAll("[data-day]").forEach(
+    (button) =>
+      (button.onclick = () => {
+        selectedDay = button.dataset.day;
+        render();
+      }),
+  );
+  ["add", "empty-add"].forEach((id) => {
+    if ($("#" + id)) $("#" + id).onclick = addDialog;
+  });
+  $("#invite").onclick = invite;
+  $("#account").onclick = groupDialog;
+  if ($("#start")) $("#start").onclick = groupDialog;
+  if ($("#past"))
+    $("#past").onclick = () => {
+      showPast = !showPast;
+      render();
+    };
+}
+await refresh(true);
+if (new URLSearchParams(location.search).has("join")) groupDialog();
+setInterval(() => {
+  if (token && !$("#modal").open && !document.hidden && !busy) refresh();
+}, 15000);
