@@ -2307,3 +2307,47 @@ input[type="datetime-local"] {
 .member-list span {display:flex;align-items:center;gap:10px}
 .member-list small {opacity:.65}
 .member-list .text-button {margin:0 0 0 auto;font-size:.75rem}
+
+/* Home shows the current local calendar week, Sunday through Saturday. */
+.weekly-calendar {padding:20px;min-width:0}
+.week-heading {display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:20px}
+.week-heading h2 {margin:0;font:500 18px Orbitron,Arial,sans-serif;color:var(--cyan)}
+.week-heading p {margin:6px 0 0;color:var(--muted);font-size:12px}
+.week-heading .text-button {display:flex;align-items:center;gap:5px;margin:0;font-size:11px}
+.week-heading .icon {width:15px;height:15px}
+.week-grid {display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}
+.week-day {min-width:0;border:1px solid var(--line);border-radius:7px;background:#0a131a;overflow:hidden}
+.week-day.is-today {border-color:#62d9f0;box-shadow:0 0 10px #4ad5ff18}
+.week-day h3 {display:flex;flex-direction:column;align-items:center;gap:3px;margin:0;padding:12px 6px;border-bottom:1px solid var(--line);font-weight:400;min-height:94px}
+.week-day h3 > span {font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+.week-day h3 b {font:500 20px Orbitron,Arial,sans-serif;color:var(--text)}
+.week-day h3 small {font-size:9px;color:var(--cyan)}
+.week-plans {padding:8px;display:flex;flex-direction:column;gap:8px}
+.week-event {display:flex;flex-direction:column;gap:5px;text-align:left;width:100%;min-width:0;padding:10px 8px;border:1px solid #315d6d;border-left:2px solid var(--cyan);border-radius:4px;background:#14334266;overflow-wrap:anywhere}
+.week-event:hover,.week-event:focus-visible {background:#20495d99;border-color:var(--cyan)}
+.week-event-time {font-size:10px;color:var(--cyan)}
+.week-event strong {font-size:12px;line-height:1.4;font-weight:500;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
+.week-event-status {font-size:9px;color:var(--muted)}
+.week-event.has-ended {opacity:.65}
+.week-empty {margin:10px 0;text-align:center;color:#698795;font-size:10px}
+@media(max-width:900px) {
+ .week-grid {grid-template-columns:minmax(0,1fr);gap:0}
+ .week-day {display:grid;grid-template-columns:70px minmax(0,1fr);border-radius:0;border-bottom:0}
+ .week-day:last-child {border-bottom:1px solid var(--line);border-radius:0 0 7px 7px}
+ .week-day:first-child {border-radius:7px 7px 0 0}
+ .week-day.is-today {border-bottom:1px solid var(--cyan)}
+ .week-day.is-today + .week-day {border-top:0}
+ .week-day h3 {min-height:60px;border-bottom:0;border-right:1px solid var(--line);justify-content:center;padding:8px 4px}
+ .week-plans {justify-content:center;gap:6px}
+ .week-empty {margin:4px 0;text-align:left;padding-left:4px}
+ .week-event {padding:8px 10px;gap:3px}
+}
+@media(max-width:600px) {
+ .weekly-calendar {padding:12px}
+ .week-heading {margin-bottom:14px;gap:8px}
+ .week-heading h2 {font-size:15px}
+ .week-heading p {font-size:10px}
+ .week-heading .text-button {font-size:10px}
+ .week-day {grid-template-columns:54px minmax(0,1fr)}
+ .week-day h3 b {font-size:17px}
+}

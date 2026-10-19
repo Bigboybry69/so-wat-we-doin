@@ -173,38 +173,17 @@ function upcoming() {
     .sort((a, b) => new Date(a.starts) - new Date(b.starts));
 }
 function dashboard() {
-  const events = upcoming(),
-    going = events.filter((e) =>
-      e.responses.some((r) => r.mine && r.status === "going"),
-    );
-  const next = going[0] || events[0],
-    undecided = events
-      .filter(
-        (e) =>
-          !e.responses.some(
-            (r) =>
-              r.mine && (r.vote || r.status === "going" || r.status === "out"),
-          ),
-      )
-      .filter((e) => e.id !== next?.id);
-  return `<div class="dashboard-stats">${[
-    {label:"Upcoming",count:events.length,action:'data-view="events"',symbol:"calendar"},
-    {label:"You’re going",count:going.length,action:'data-event-filter="going"',symbol:"check"},
-  ].map(({label,count,action,symbol})=>`<button class="stat gauge" ${action} aria-label="${label}: ${count} events"><svg class="gauge-dial" viewBox="0 0 160 160" fill="none" aria-hidden="true"><circle class="gauge-rim" cx="80" cy="80" r="74"/><path class="gauge-track" d="M 32 128 A 68 68 0 1 1 128 128"/><path class="gauge-arc ${count?'lit':''}" d="M 32 128 A 68 68 0 1 1 128 128"/><path class="gauge-ticks" d="M 40 120 A 56.5 56.5 0 1 1 120 120"/></svg><span class="gauge-reading"><b>${count}</b><span>${label}</span></span><span class="gauge-symbol">${icon(symbol)}</span></button>`).join('')}</div><div class="dashboard-grid"><section class="next-panel panel"><div class="section-line"><h2 class="section-heading">${going.length ? "YOUR NEXT EVENT" : "NEXT IN YOUR GROUP"}</h2>${icon("calendar")}</div>${next ? `<p class="next-date">${date(next.starts)} · ${time(next.starts)}</p><h2 class="next-title"><button data-open="${next.id}">${esc(next.title)}</button></h2><p class="location">${icon("pin")}${esc(next.place)}</p><div class="next-bottom"><span>${next.responses.filter((r) => r.status === "going").length} going${next.responses.some((r) => r.mine && r.status === "going") ? " · You’re in" : ""}</span><button class="secondary" data-open="${next.id}">Details & rides ${icon("arrow")}</button></div>` : `<h2 class="next-title">Make your next plan.</h2><p class="hint">Add an event and get your people together.</p><button class="secondary" id="empty-add">Add your first event ${icon("plus")}</button>`}</section><section class="decisions-panel panel"><div class="section-line"><h2 class="section-heading">${undecided.length ? "STILL DECIDING?" : "YOUR GROUP"}</h2><span>${undecided.length ? "Pick a plan" : state.members.length + " people"}</span></div>${
-    undecided
-      .slice(0, 2)
-      .map(
-        (e) =>
-          `<button class="dashboard-event" data-open="${e.id}"><span class="mini-date">${new Date(e.starts).getDate()}<small>${new Date(e.starts).toLocaleDateString(undefined, { month: "short" })}</small></span><span><strong>${esc(e.title)}</strong><small>${time(e.starts)} · ${e.responses.reduce((sum, r) => sum + r.vote, 0)} votes</small></span>${icon("right")}</button>`,
-      )
-      .join("") ||
-    `<p class="group-summary">${state.members
-      .slice(0, 4)
-      .map((m) => esc(m.name))
-      .join(
-        ", ",
-      )}${state.members.length > 4 ? " + " + (state.members.length - 4) + " more" : ""}</p><p class="hint">One place for your plans and rides.</p>`
-  }<button class="dashboard-link" data-view="events">See all events ${icon("arrow")}</button></section></div>`;
+  const today = new Date(), start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  start.setDate(start.getDate() - start.getDay());
+  const days = Array.from({length:7}, (_,index) => {
+    const day = new Date(start); day.setDate(day.getDate()+index);
+    const end = new Date(day); end.setDate(end.getDate()+1);
+    const events = state.events.filter(e => new Date(e.starts)<end && new Date(e.ends)>day)
+      .sort((a,b)=>new Date(a.starts)-new Date(b.starts));
+    return {day,events};
+  });
+  const shortDate = value => value.toLocaleDateString(undefined,{month:'short',day:'numeric'});
+  return `<section class="weekly-calendar panel" aria-label="This week’s events"><div class="week-heading"><div><h2>This week</h2><p>${shortDate(start)} – ${shortDate(days[6].day)}</p></div><button class="text-button" data-view="calendar">Full calendar ${icon('arrow')}</button></div><div class="week-grid">${days.map(({day,events})=>`<section class="week-day ${dayKey(day)===dayKey(today)?'is-today':''}" aria-label="${esc(date(day))}"><h3><span>${day.toLocaleDateString(undefined,{weekday:'short'})}</span><b>${day.getDate()}</b>${dayKey(day)===dayKey(today)?'<small>Today</small>':''}</h3><div class="week-plans">${events.map(e=>`<button class="week-event ${new Date(e.ends)<today?'has-ended':''}" data-open="${e.id}"><span class="week-event-time">${new Date(e.starts)<day?'Continues':time(e.starts)}</span><strong>${esc(e.title)}</strong><span class="week-event-status">${e.responses.some(r=>r.mine&&r.status==='going')?'You’re going':e.responses.filter(r=>r.status==='going').length+' going'}</span></button>`).join('')||'<p class="week-empty">No plans</p>'}</div></section>`).join('')}</div></section>`;
 }
 function eventsPage() {
   const events = (
@@ -288,7 +267,7 @@ function render() {
       )
       .join(
         "",
-      )}</nav><div class="page-heading"><div><h1>${title}</h1><p>${view === "home" ? "Your plans, at a glance." : view === "events" ? "All the plans shared with your group." : "Find a day. Make a plan."}</p></div><button class="primary" id="add">${icon("plus")} Add event</button></div>${!token ? '<div class="demo-banner"><span>New here? Create a group.</span><div class="welcome-actions"><button id="start">Create group</button><button id="restore">Sign back in</button></div></div>' : ""}<div class="page-content" id="page-content">${view === "home" ? dashboard() : view === "calendar" ? calendar() : eventsPage()}</div><footer><span class="footer-mark">THE GRID</span><button class="footer-update" data-check-update>${icon("refresh")} Check for updates</button></footer></main>`;
+      )}</nav><div class="page-heading"><div><h1>${title}</h1><p>${view === "home" ? "What’s happening this week." : view === "events" ? "All the plans shared with your group." : "Find a day. Make a plan."}</p></div><button class="primary" id="add">${icon("plus")} Add event</button></div>${!token ? '<div class="demo-banner"><span>New here? Create a group.</span><div class="welcome-actions"><button id="start">Create group</button><button id="restore">Sign back in</button></div></div>' : ""}<div class="page-content" id="page-content">${view === "home" ? dashboard() : view === "calendar" ? calendar() : eventsPage()}</div><footer><span class="footer-mark">THE GRID</span><button class="footer-update" data-check-update>${icon("refresh")} Check for updates</button></footer></main>`;
   bind();
   if (focusedAction)
     document
