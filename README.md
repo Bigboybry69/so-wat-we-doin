@@ -26,6 +26,12 @@ Open port 3000. Set `PORT` to change the port. `DATA_DIR` defaults to `.data`; t
 5. Mark Going, Maybe, or Out and offer passenger seats if driving. Open **Details & rides** on an event to update attendance and offer seats. **Carpool details** lists drivers, offered seats, and attendees without ride offers. Seat reservation, pickup assignment, and messaging are not implemented; coordinate those with your friends.
 6. The calendar shows all group events. Other devices refresh every 15 seconds. Data persists across server restarts.
 
+## Delete an event
+
+Only the recorded creator can delete an event. Open **Details & rides → Delete event**, then confirm. This removes the event, votes, attendance, ride offers, and queued unsent alerts for everyone. Other members do not see a delete option and the database rejects their requests. Older events without a recorded creator cannot be safely attributed by display name, so they remain protected. Ownership uses the original browser membership; clearing sign-in data and rejoining with the same display name does not recover that ownership.
+
+The **Update event deletion** GitHub workflow applies the one-time database update automatically using the existing `SUPABASE_ACCESS_TOKEN` repository secret. If that token has been removed or expired, run [event-deletion.sql](supabase/event-deletion.sql) once in a new Supabase SQL Editor query instead. Fresh databases include creator tracking and deletion in `schema.sql`. The update preserves existing records and does not delete events by itself. Already delivered or in-flight push notifications cannot be recalled.
+
 ## Check for app updates
 
 Use the refresh icon in the top bar or **Check for updates** at the bottom of any page. The app checks the latest published version without using the browser cache, then reloads if a newer release is available. Your group sign-in stays in local storage and the current page is preserved. GitHub must finish publishing before a new release can be found. No database update is needed.
@@ -46,7 +52,7 @@ Once deployed at a publicly accessible HTTPS URL, open it in Safari, tap **Share
 
 ## Identity and privacy
 
-Membership uses a random bearer token saved in that browser's local storage. Supabase stores only its hash in a private schema. Tokens are never returned in group member lists. There are no passwords or account recovery. Clearing browser data requires rejoining with the invite and creates a new member. Names are self-selected, so this is suitable for a trusted group, not a public identity system. Invite revocation, member removal, event editing/deletion, spam protection, and administrative controls need further work before a broad public launch. Back up the SQLite database. External links open in a separate tab.
+Membership uses a random bearer token saved in that browser's local storage. Supabase stores only its hash in a private schema. Tokens are never returned in group member lists. There are no passwords or account recovery. Clearing browser data requires rejoining with the invite and creates a new member. Names are self-selected, so this is suitable for a trusted group, not a public identity system. Invite revocation, member removal, event editing, spam protection, and administrative controls need further work before a broad public launch. Back up the SQLite database. External links open in a separate tab.
 
 ## Validation
 

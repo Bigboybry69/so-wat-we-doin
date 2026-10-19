@@ -16,6 +16,7 @@ export async function api(path, data, token) {
       join: "doin_join",
       state: "doin_state",
       events: "doin_add_event",
+      deleteEvent: "doin_delete_event",
       respond: "doin_respond",
       pushStatus: "doin_push_status",
       pushSubscribe: "doin_push_subscribe",
@@ -58,6 +59,10 @@ export async function api(path, data, token) {
     );
   }
   if (!response.ok) {
+    if (result.code === "PGRST202" && path === "deleteEvent")
+      throw new Error(
+        "Event deletion needs a one-time database update. Ask the group organizer to run the event deletion update.",
+      );
     if (result.code === "PGRST202" && path === "group")
       throw new Error(
         "Group editing needs a one-time database update. Run supabase/group-settings.sql in the Supabase SQL Editor.",

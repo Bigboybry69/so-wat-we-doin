@@ -150,3 +150,72 @@ test("serves app and home screen manifest", async () => {
   assert.equal(manifest.display, "standalone");
   assert.equal((await fetch(base + "/missing")).status, 404);
 });
+
+test("local deletion requires creator identity and preserves other events", async () => {
+  const a = await request("groups", { group: "Delete test", name: "Alex" }),
+    b = await request("join", { invite: a.body.invite, name: "Alex" }),
+    c = await request("groups", { group: "Other delete test", name: "Alex" });
+  const event = {
+    title: "Delete me",
+    place: "Park",
+    category: "Music",
+    starts: "2026-11-01T18:00:00Z",
+    ends: "2026-11-01T20:00:00Z",
+  };
+  const own = await request("events", event, a.body.token),
+    other = await request(
+      "events",
+      { ...event, title: "Keep me" },
+      b.body.token,
+    );
+  await request(
+    "respond",
+    { event: own.body.id, vote: 1, status: "going", seats: 2 },
+    b.body.token,
+  );
+  const ownState = (await request("state", null, a.body.token)).body;
+  assert.equal(
+    ownState.events.find((e) => e.id === own.body.id).canDelete,
+    true,
+  );
+  assert.equal(
+    ownState.events.find((e) => e.id === own.body.id).added_by,
+    undefined,
+  );
+  assert.equal(
+    (await request("state", null, b.body.token)).body.events.find(
+      (e) => e.id === own.body.id,
+    ).canDelete,
+    false,
+  );
+  assert.equal(
+    (await request("deleteEvent", { event: own.body.id })).status,
+    401,
+  );
+  assert.equal(
+    (await request("deleteEvent", { event: own.body.id }, b.body.token)).status,
+    403,
+  );
+  assert.equal(
+    (await request("deleteEvent", { event: own.body.id }, c.body.token)).status,
+    403,
+  );
+  assert.equal(
+    (await request("deleteEvent", { event: own.body.id }, a.body.token)).status,
+    200,
+  );
+  const after = (await request("state", null, b.body.token)).body;
+  assert.equal(
+    after.events.some((e) => e.id === own.body.id),
+    false,
+  );
+  assert.equal(
+    after.events.some((e) => e.id === other.body.id),
+    true,
+  );
+  assert.equal(
+    (await request("deleteEvent", { event: other.body.id }, a.body.token))
+      .status,
+    403,
+  );
+});

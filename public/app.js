@@ -533,8 +533,10 @@ function detail(id) {
             `<div class="crew-person"><span>${esc(r.name)}</span><span>${r.status === "going" ? "Going" : "Maybe"}${r.seats ? " · " + r.seats + " seats" : ""}</span></div>`,
         )
         .join("") || '<p class="hint">No responses yet.</p>'
-    }</section><details class="ride-details"><summary>${icon("car")} Carpool details</summary>${drivers.length ? drivers.map((r) => `<p><strong>${esc(r.name)}</strong> offers ${r.seats} passenger seats.</p>`).join("") : "<p>No ride offers yet.</p>"}${passengers.length ? `<p>Going without a ride offer: ${passengers.map((r) => esc(r.name)).join(", ")}.</p>` : ""}<p class="hint">Arrange pickups with your group. Seats aren’t reserved here.</p></details>`,
+    }</section><details class="ride-details"><summary>${icon("car")} Carpool details</summary>${drivers.length ? drivers.map((r) => `<p><strong>${esc(r.name)}</strong> offers ${r.seats} passenger seats.</p>`).join("") : "<p>No ride offers yet.</p>"}${passengers.length ? `<p>Going without a ride offer: ${passengers.map((r) => esc(r.name)).join(", ")}.</p>` : ""}<p class="hint">Arrange pickups with your group. Seats aren’t reserved here.</p></details>${event.canDelete ? '<button id="delete-event" class="delete-event">Delete event</button>' : event.creatorKnown === false ? '<p class="hint legacy-event">This older event has no recorded creator, so deletion is unavailable.</p>' : ""}`,
   );
+  if ($("#delete-event"))
+    $("#delete-event").onclick = () => confirmDeleteEvent(event);
   const statusSelect = $("#rsvp-form [name=status]"),
     seatsSelect = $("#rsvp-form [name=seats]");
   const syncSeats = () => {
@@ -565,6 +567,32 @@ function detail(id) {
     }
   };
 }
+function confirmDeleteEvent(event) {
+  modal(
+    `<p class="eyebrow">DELETE EVENT</p><h2>Delete this event?</h2><p><strong>${esc(event.title)}</strong> will be removed for everyone, including its votes and ride offers. This can’t be undone.</p><div class="group-actions delete-actions"><button class="secondary" id="cancel-delete-event">Keep event</button><button class="danger" id="confirm-delete-event">Delete event</button></div><p class="form-error" role="alert"></p>`,
+  );
+  $("#cancel-delete-event").onclick = () => detail(event.id);
+  $("#confirm-delete-event").onclick = async () => {
+    const button = $("#confirm-delete-event");
+    button.disabled = true;
+    $("#cancel-delete-event").disabled = true;
+    try {
+      await api("deleteEvent", { event: event.id });
+      state.events = state.events.filter((e) => e.id !== event.id);
+      $("#modal").close();
+      render();
+      toast("Event deleted for everyone.");
+      await refresh(true);
+    } catch (error) {
+      const message = $("#modal .form-error");
+      if (message) message.textContent = error.message;
+      button.disabled = false;
+      const cancel = $("#cancel-delete-event");
+      if (cancel) cancel.disabled = false;
+    }
+  };
+}
+
 async function quickResponse(button, action) {
   if (busy) return;
   if (!token) {
@@ -711,6 +739,7 @@ async function openNotificationEvent(id, group) {
     return;
   }
   if (state?.events.some((event) => event.id === id)) detail(id);
+  else toast("This event is no longer available.");
 }
 if ("serviceWorker" in navigator)
   navigator.serviceWorker.addEventListener("message", (event) => {

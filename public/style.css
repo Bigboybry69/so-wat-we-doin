@@ -2288,3 +2288,33 @@ input[type="datetime-local"] {
 #app {
   display: flow-root;
 }
+.delete-event {
+  display: block;
+  min-height: 44px;
+  margin: 18px 0 0;
+  padding: 8px 0;
+  color: #ffa596;
+  font-size: 12px;
+  text-decoration: underline;
+}
+.delete-event:hover {
+  color: #ffd3cb;
+}
+.danger {
+  background: #59292c;
+  border: 1px solid #bd6b68;
+  color: #ffe1dc;
+  border-radius: 5px;
+  padding: 11px 16px;
+  min-height: 44px;
+  font-size: 12px;
+}
+.danger:hover {
+  background: #75363a;
+}
+.delete-actions {
+  margin: 24px 0 16px;
+}
+.legacy-event {
+  margin-top: 20px;
+}

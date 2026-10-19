@@ -1,0 +1,23 @@
+name: Update event deletion
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/event-deletion.sql'
+      - 'scripts/apply-event-deletion.js'
+      - '.github/workflows/event-deletion.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Apply creator-only event deletion
+        run: node scripts/apply-event-deletion.js
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
