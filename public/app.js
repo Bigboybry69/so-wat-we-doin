@@ -177,14 +177,6 @@ function dashboard() {
     going = events.filter((e) =>
       e.responses.some((r) => r.mine && r.status === "going"),
     );
-  const seats = going.reduce(
-    (sum, e) =>
-      sum +
-      e.responses
-        .filter((r) => r.status === "going")
-        .reduce((n, r) => n + r.seats, 0),
-    0,
-  );
   const next = going[0] || events[0],
     undecided = events
       .filter(
@@ -195,7 +187,10 @@ function dashboard() {
           ),
       )
       .filter((e) => e.id !== next?.id);
-  return `<div class="dashboard-stats"><button class="stat panel" data-view="events"><span>Upcoming</span><b>${events.length}</b>${icon("calendar")}</button><button class="stat panel" data-event-filter="going"><span>You’re going</span><b>${going.length}</b>${icon("check")}</button><button class="stat panel" data-event-filter="going"><span>Seats offered${going.length ? " on your plans" : ""}</span><b>${seats}</b>${icon("car")}</button></div><div class="dashboard-grid"><section class="next-panel panel"><div class="section-line"><h2 class="section-heading">${going.length ? "YOUR NEXT EVENT" : "NEXT IN YOUR GROUP"}</h2>${icon("calendar")}</div>${next ? `<p class="next-date">${date(next.starts)} · ${time(next.starts)}</p><h2 class="next-title"><button data-open="${next.id}">${esc(next.title)}</button></h2><p class="location">${icon("pin")}${esc(next.place)}</p><div class="next-bottom"><span>${next.responses.filter((r) => r.status === "going").length} going${next.responses.some((r) => r.mine && r.status === "going") ? " · You’re in" : ""}</span><button class="secondary" data-open="${next.id}">Details & rides ${icon("arrow")}</button></div>` : `<h2 class="next-title">Make your next plan.</h2><p class="hint">Add an event and get your people together.</p><button class="secondary" id="empty-add">Add your first event ${icon("plus")}</button>`}</section><section class="decisions-panel panel"><div class="section-line"><h2 class="section-heading">${undecided.length ? "STILL DECIDING?" : "YOUR GROUP"}</h2><span>${undecided.length ? "Pick a plan" : state.members.length + " people"}</span></div>${
+  return `<div class="dashboard-stats">${[
+    {label:"Upcoming",count:events.length,action:'data-view="events"',symbol:"calendar"},
+    {label:"You’re going",count:going.length,action:'data-event-filter="going"',symbol:"check"},
+  ].map(({label,count,action,symbol})=>`<button class="stat gauge" ${action} aria-label="${label}: ${count} events"><svg class="gauge-dial" viewBox="0 0 160 160" fill="none" aria-hidden="true"><circle class="gauge-rim" cx="80" cy="80" r="74"/><path class="gauge-track" d="M 32 128 A 68 68 0 1 1 128 128"/><path class="gauge-arc ${count?'lit':''}" d="M 32 128 A 68 68 0 1 1 128 128"/><path class="gauge-ticks" d="M 40 120 A 56.5 56.5 0 1 1 120 120"/></svg><span class="gauge-reading"><b>${count}</b><span>${label}</span></span><span class="gauge-symbol">${icon(symbol)}</span></button>`).join('')}</div><div class="dashboard-grid"><section class="next-panel panel"><div class="section-line"><h2 class="section-heading">${going.length ? "YOUR NEXT EVENT" : "NEXT IN YOUR GROUP"}</h2>${icon("calendar")}</div>${next ? `<p class="next-date">${date(next.starts)} · ${time(next.starts)}</p><h2 class="next-title"><button data-open="${next.id}">${esc(next.title)}</button></h2><p class="location">${icon("pin")}${esc(next.place)}</p><div class="next-bottom"><span>${next.responses.filter((r) => r.status === "going").length} going${next.responses.some((r) => r.mine && r.status === "going") ? " · You’re in" : ""}</span><button class="secondary" data-open="${next.id}">Details & rides ${icon("arrow")}</button></div>` : `<h2 class="next-title">Make your next plan.</h2><p class="hint">Add an event and get your people together.</p><button class="secondary" id="empty-add">Add your first event ${icon("plus")}</button>`}</section><section class="decisions-panel panel"><div class="section-line"><h2 class="section-heading">${undecided.length ? "STILL DECIDING?" : "YOUR GROUP"}</h2><span>${undecided.length ? "Pick a plan" : state.members.length + " people"}</span></div>${
     undecided
       .slice(0, 2)
       .map(

@@ -1521,37 +1521,35 @@ input[type="datetime-local"] {
 }
 .dashboard-stats {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  justify-items: center;
   gap: 16px;
   margin-bottom: 20px;
 }
-.stat {
-  text-align: left;
-  padding: 18px 22px;
+.stat.gauge {
   position: relative;
+  width: min(100%, 180px);
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, #15313d80, #0a141b 68%);
+  text-align: center;
 }
-.stat > span {
-  display: block;
-  color: var(--muted);
-  font-size: 11px;
+.gauge:hover, .gauge:focus-visible {
+  background: radial-gradient(circle, #1d465680, #0a141b 68%);
 }
-.stat > b {
-  font:
-    500 28px Orbitron,
-    Arial,
-    sans-serif;
-  color: var(--cyan);
-  display: block;
-  margin-top: 8px;
-}
-.stat > .icon {
-  position: absolute;
-  right: 20px;
-  bottom: 23px;
-  width: 25px;
-  height: 25px;
-  color: #468196;
-}
+.gauge-dial {display:block;width:100%;height:100%}
+.gauge-rim {stroke:#294e5d;stroke-width:1}
+.gauge-track {stroke:#203d4a;stroke-width:7;stroke-linecap:round}
+.gauge-arc {stroke:#47717f;stroke-width:4;stroke-linecap:round}
+.gauge-arc.lit {stroke:var(--cyan);filter:drop-shadow(0 0 4px #70e4ff80)}
+.gauge-ticks {stroke:#568b9e;stroke-width:5;stroke-dasharray:1 10}
+.gauge-reading {position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+.gauge-reading b {font:500 clamp(26px,4vw,38px) Orbitron,Arial,sans-serif;color:var(--cyan);line-height:1.2}
+.gauge-reading > span {font-size:11px;color:var(--muted)}
+.gauge-symbol {position:absolute;bottom:12%;left:0;right:0;color:var(--cyan)}
+.gauge-symbol .icon {width:16px;height:16px}
 .dashboard-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
@@ -1966,25 +1964,9 @@ input[type="datetime-local"] {
     gap: 8px;
     margin-bottom: 12px;
   }
-  .stat {
-    padding: 12px 10px;
-  }
-  .stat > span {
-    font-size: 9px;
-    line-height: 1.3;
-    min-height: 12px;
-    max-width: 85px;
-  }
-  .stat > b {
-    font-size: 23px;
-    margin-top: 6px;
-  }
-  .stat > .icon {
-    width: 15px;
-    height: 15px;
-    right: 10px;
-    bottom: 15px;
-  }
+  .stat.gauge {width:min(100%, 145px)}
+  .gauge-reading > span {font-size:10px}
+  .gauge-symbol .icon {width:14px;height:14px}
   .dashboard-grid {
     grid-template-columns: minmax(0, 1fr);
     gap: 12px;
@@ -2148,11 +2130,6 @@ input[type="datetime-local"] {
   }
   #toast {
     bottom: calc(82px + env(safe-area-inset-bottom));
-  }
-}
-@media (max-width: 600px) {
-  .stat > span {
-    min-height: 24px;
   }
 }
 /* A single illuminated screen frame, with persistent update controls. */
