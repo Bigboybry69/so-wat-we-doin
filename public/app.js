@@ -1,3 +1,8 @@
+import {
+  notificationStatus,
+  enableNotifications,
+  disableNotifications,
+} from "./notifications.js";
 import { api as requestApi, appUrl } from "./api.js";
 
 const $ = (selector) => document.querySelector(selector);
@@ -21,6 +26,7 @@ let state,
   connected = false;
 let refreshNumber = 0;
 const paths = {
+  bell: "M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4",
   plus: "M12 5v14M5 12h14",
   check: "m5 12 4 4L19 6",
   close: "m6 6 12 12M6 18 18 6",
@@ -208,7 +214,7 @@ function render() {
     )
     .sort((a, b) => new Date(a.starts) - new Date(b.starts));
   $("#app").innerHTML = `<main class="shell">
-    <header class="masthead"><div class="top-line"><span class="system-label">DOIN’ / SHARED PLANS</span><button id="account" class="identity">${icon("users")}${token ? esc(state.me.name) : "Join the grid"}</button></div><a class="wordmark" href="./" aria-label="The Grid home"><img src="./wordmark.svg" alt="The Grid" width="600" height="81"></a><p class="tagline"><span class="status-dot ${token && !connected ? "offline" : ""}"></span>${token ? (connected ? "YOUR PEOPLE. ONE PLACE." : "RECONNECTING TO YOUR GROUP") : "GOOD PLANS START HERE."}</p></header>
+    <header class="masthead"><div class="top-line"><span class="system-label">DOIN’ / SHARED PLANS</span><div class="account-controls">${token ? `<button id="notifications" class="notification-button" aria-label="Notification settings" title="Notifications">${icon("bell")}</button>` : ""}<button id="account" class="identity">${icon("users")}${token ? esc(state.me.name) : "Join the grid"}</button></div></div><a class="wordmark" href="./" aria-label="The Grid home"><img src="./wordmark.svg" alt="The Grid" width="600" height="81"></a><p class="tagline"><span class="status-dot ${token && !connected ? "offline" : ""}"></span>${token ? (connected ? "YOUR PEOPLE. ONE PLACE." : "RECONNECTING TO YOUR GROUP") : "GOOD PLANS START HERE."}</p></header>
     <div class="command-bar"><div class="group-info"><span class="group-glyph">${icon("users")}</span><div><h1>${esc(state.group.name)}</h1><p>${token ? state.members.length + " people connected" : "A simpler way to get together"}</p></div></div><button id="invite" class="secondary">${icon("plus")} Invite friends</button></div>
     ${!token ? '<div class="demo-banner"><span>Sample events. Make a group to start planning.</span><button id="start">Create group <span aria-hidden="true">→</span></button></div>' : ""}
     <div class="view-toolbar"><nav class="view-tabs" aria-label="View"><button data-view="events" aria-pressed="${view === "events"}" class="${view === "events" ? "selected" : ""}">${icon("grid")} Events</button><button data-view="calendar" aria-pressed="${view === "calendar"}" class="${view === "calendar" ? "selected" : ""}">${icon("calendar")} Calendar</button></nav><button class="primary" id="add">${icon("plus")} Add event</button></div>
@@ -234,7 +240,13 @@ function groupDialog() {
       `<p class="eyebrow">YOUR GROUP</p><h2>${esc(state.group.name)}</h2><p>You're connected as <strong>${esc(state.me.name)}</strong>.</p><div class="member-list">${state.members.map((m) => `<span>${esc(m.name)}</span>`).join("")}</div><button id="share-group" class="primary">${icon("plus")} Invite friends</button><button id="leave" class="text-button">Leave this group on this device</button><p class="hint">Leaving doesn’t delete the group. Keep an invite link if you want to rejoin.</p>`,
     );
     $("#share-group").onclick = invite;
-    $("#leave").onclick = () => {
+    $("#leave").onclick = async () => {
+      try {
+        await disableNotifications(api);
+      } catch {
+        toast("Couldn’t turn off notifications. Reconnect before leaving.");
+        return;
+      }
       localStorage.removeItem(storageKey);
       token = null;
       $("#modal").close();
@@ -267,6 +279,59 @@ function groupDialog() {
     }
   };
 }
+
+async function notificationDialog() {
+  modal(
+    `<p class="eyebrow">YOUR PHONE</p><h2>New event alerts</h2><p id="notification-message">Checking notification settings…</p><div id="notification-actions"></div><p class="form-error" role="alert"></p>`,
+  );
+  try {
+    const status = await notificationStatus(api);
+    if (!$("#modal").open || !$("#notification-message")) return;
+    const descriptions = {
+      install:
+        "On iPhone, open this site in Safari, tap Share → Add to Home Screen, then open that Home Screen app and tap the bell. Requires iOS 16.4 or newer.",
+      unsupported:
+        "Push notifications aren’t available in this browser. Try the latest Safari, Chrome, or Firefox. On iPhone, use the app from your Home Screen.",
+      blocked:
+        "Notifications are blocked. Allow notifications for The Grid in your phone or browser settings, then come back here.",
+    };
+    if (status.support !== "supported") {
+      $("#notification-message").textContent = descriptions[status.support];
+      return;
+    }
+    if (!status.ready) {
+      $("#notification-message").textContent =
+        "Notifications need the one-time server setup first. Your group organizer can run Setup notifications in GitHub.";
+      return;
+    }
+    $("#notification-message").textContent = status.subscribed
+      ? "You’ll get an alert on this device when someone else adds an event to this group."
+      : "Get an alert when someone else adds an event—even when the app is closed. This is optional and applies to this device.";
+    $("#notification-actions").innerHTML =
+      `<button class="primary" id="toggle-notifications">${status.subscribed ? "Turn off notifications" : "Enable notifications"}</button>`;
+    $("#toggle-notifications").onclick = async (event) => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      try {
+        if (status.subscribed) await disableNotifications(api);
+        else await enableNotifications(api, status.publicKey);
+        if ($("#modal").open) $("#modal").close();
+        toast(
+          status.subscribed
+            ? "Notifications turned off on this device."
+            : "New event notifications are on.",
+        );
+      } catch (error) {
+        if ($(".form-error")) $(".form-error").textContent = error.message;
+        button.disabled = false;
+      }
+    };
+  } catch (error) {
+    if ($("#notification-message"))
+      $("#notification-message").textContent = error.message;
+  }
+}
+
 async function invite() {
   if (!token) return groupDialog();
   const url = appUrl + "?join=" + state.group.id;
@@ -464,6 +529,7 @@ function bind() {
   });
   $("#invite").onclick = invite;
   $("#account").onclick = groupDialog;
+  if ($("#notifications")) $("#notifications").onclick = notificationDialog;
   if ($("#start")) $("#start").onclick = groupDialog;
   if ($("#past"))
     $("#past").onclick = () => {
@@ -476,3 +542,23 @@ if (new URLSearchParams(location.search).has("join")) groupDialog();
 setInterval(() => {
   if (token && !$("#modal").open && !document.hidden && !busy) refresh();
 }, 15000);
+
+async function openNotificationEvent(id, group) {
+  if (!token) return;
+  await refresh(true);
+  if (group && state?.group.id !== group) {
+    toast("This notification is for another group.");
+    return;
+  }
+  if (state?.events.some((event) => event.id === id)) detail(id);
+}
+if ("serviceWorker" in navigator)
+  navigator.serviceWorker.addEventListener("message", (event) => {
+    if (event.data?.type === "grid-open-event")
+      openNotificationEvent(event.data.event, event.data.group);
+  });
+const notifiedEvent = new URLSearchParams(location.search).get("event");
+if (notifiedEvent) {
+  history.replaceState({}, "", appUrl);
+  openNotificationEvent(notifiedEvent);
+}

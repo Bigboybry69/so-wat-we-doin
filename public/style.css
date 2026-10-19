@@ -1355,3 +1355,39 @@ input[type="datetime-local"] {
     margin-bottom: 18px;
   }
 }
+.account-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.notification-button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  color: var(--cyan);
+  border-radius: 5px;
+}
+.notification-button:hover {
+  background: #142c37;
+}
+#notification-actions {
+  margin-top: 24px;
+}
+#notification-actions:empty {
+  display: none;
+}
+#notification-actions .primary {
+  width: 100%;
+}
+@media (max-width: 600px) {
+  .account-controls {
+    gap: 5px;
+  }
+  .notification-button {
+    width: 40px;
+  }
+  .identity {
+    max-width: 110px;
+  }
+}

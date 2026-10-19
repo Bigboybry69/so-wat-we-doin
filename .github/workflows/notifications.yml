@@ -1,0 +1,26 @@
+name: Setup notifications
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: notification-setup
+  cancel-in-progress: false
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci
+      - run: npm test
+      - name: Prepare database and private push keys
+        run: node scripts/setup-notifications.js
+      - name: Deploy notification worker
+        run: npx --yes supabase@2.121.0 functions deploy notify-events --project-ref ecxbznnetkifbmpiudqu --no-verify-jwt --use-api
+      - name: Enable notifications
+        run: node scripts/setup-notifications.js --activate

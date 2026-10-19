@@ -26,9 +26,13 @@ Open port 3000. Set `PORT` to change the port. `DATA_DIR` defaults to `.data`; t
 5. Mark Going, Maybe, or Out and offer passenger seats if driving. Open **Details & rides** on an event to update attendance and offer seats. **Carpool details** lists drivers, offered seats, and attendees without ride offers. Seat reservation, pickup assignment, and messaging are not implemented; coordinate those with your friends.
 6. The calendar shows all group events. Other devices refresh every 15 seconds. Data persists across server restarts.
 
+## Event notifications
+
+Tap the **bell** to enable or disable new-event alerts on each device. Notifications require a one-time owner setup; follow [the notification setup guide](supabase/NOTIFICATIONS.md). On iPhone, use iOS 16.4+ and launch the installed Home Screen app. Alerts are sent to other subscribed group members by Supabase, even when the app is closed. Notification setup is not activated just by publishing the website.
+
 ## iPhone Home Screen
 
-Once deployed at a publicly accessible HTTPS URL, open it in Safari, tap **Share → Add to Home Screen**, and choose **Add**. The manifest and Apple touch icon provide an app-style launch. Safari installation and behavior on a physical iPhone still need device validation. This app requires an internet connection; offline edits, push notifications, and an iOS system share-sheet extension are not implemented. Copy an event link into the Add event form.
+Once deployed at a publicly accessible HTTPS URL, open it in Safari, tap **Share → Add to Home Screen**, and choose **Add**. The manifest and Apple touch icon provide an app-style launch. Safari installation and behavior on a physical iPhone still need device validation. This app requires an internet connection; offline edits and an iOS system share-sheet extension are not implemented. Copy an event link into the Add event form.
 
 ## Identity and privacy
 
