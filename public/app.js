@@ -1,3 +1,4 @@
+import { findUpdate, updateUrl } from "./updates.js";
 import {
   notificationStatus,
   enableNotifications,
@@ -30,6 +31,8 @@ let state,
 let refreshNumber = 0;
 const paths = {
   home: "m3 10 9-7 9 7v11h-6v-7H9v7H3Z",
+  refresh:
+    "M20 11a8 8 0 0 0-14-5L3 9M3 3v6h6M4 13a8 8 0 0 0 14 5l3-3M21 21v-6h-6",
   bell: "M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4",
   plus: "M12 5v14M5 12h14",
   check: "m5 12 4 4L19 6",
@@ -277,7 +280,7 @@ function render() {
     view
   ];
   $("#app").innerHTML =
-    `<main class="shell dashboard-shell"><header class="app-header"><a class="compact-brand" href="#home" data-view="home" aria-label="The Grid home"><img src="./wordmark.svg" alt="The Grid" width="180" height="26"></a><div class="account-controls">${token ? `<button id="notifications" class="notification-button" aria-label="Notification settings" title="Notifications">${icon("bell")}</button>` : ""}<button id="account" class="identity">${icon("users")}${token ? esc(state.me.name) : "Join group"}</button></div></header><div class="dashboard-group"><button id="group-settings" class="group-name" ${!token ? "disabled" : ""}>${icon("users")} ${esc(state.group.name)}<span class="connection-dot ${token && !connected ? "offline" : ""}"></span></button><button id="invite" class="small-invite">${icon("plus")} Invite friends</button></div><nav class="page-nav" aria-label="Main navigation">${[
+    `<main class="shell dashboard-shell"><header class="app-header"><a class="compact-brand" href="#home" data-view="home" aria-label="The Grid home"><img src="./wordmark.svg" alt="The Grid" width="180" height="26"></a><div class="account-controls"><button class="update-control" data-check-update aria-label="Check for updates" title="Check for updates">${icon("refresh")}<span>Check for updates</span></button>${token ? `<button id="notifications" class="notification-button" aria-label="Notification settings" title="Notifications">${icon("bell")}</button>` : ""}<button id="account" class="identity">${icon("users")}${token ? esc(state.me.name) : "Join group"}</button></div></header><div class="dashboard-group"><button id="group-settings" class="group-name" ${!token ? "disabled" : ""}>${icon("users")} ${esc(state.group.name)}<span class="connection-dot ${token && !connected ? "offline" : ""}"></span></button><button id="invite" class="small-invite">${icon("plus")} Invite friends</button></div><nav class="page-nav" aria-label="Main navigation">${[
       ["home", "home", "Home"],
       ["events", "grid", "Your events"],
       ["calendar", "calendar", "Calendar"],
@@ -288,7 +291,7 @@ function render() {
       )
       .join(
         "",
-      )}</nav><div class="page-heading"><div><h1>${title}</h1><p>${view === "home" ? "Your plans, at a glance." : view === "events" ? "All the plans shared with your group." : "Find a day. Make a plan."}</p></div><button class="primary" id="add">${icon("plus")} Add event</button></div>${!token ? '<div class="demo-banner"><span>Sample plans. Create your own group.</span><button id="start">Create group →</button></div>' : ""}<div class="page-content" id="page-content">${view === "home" ? dashboard() : view === "calendar" ? calendar() : eventsPage()}</div><footer><span class="footer-mark">THE GRID</span><span>Less planning. More living.</span></footer></main>`;
+      )}</nav><div class="page-heading"><div><h1>${title}</h1><p>${view === "home" ? "Your plans, at a glance." : view === "events" ? "All the plans shared with your group." : "Find a day. Make a plan."}</p></div><button class="primary" id="add">${icon("plus")} Add event</button></div>${!token ? '<div class="demo-banner"><span>Sample plans. Create your own group.</span><button id="start">Create group →</button></div>' : ""}<div class="page-content" id="page-content">${view === "home" ? dashboard() : view === "calendar" ? calendar() : eventsPage()}</div><footer><span class="footer-mark">THE GRID</span><button class="footer-update" data-check-update>${icon("refresh")} Check for updates</button></footer></main>`;
   bind();
   if (focusedAction)
     document
@@ -586,7 +589,38 @@ async function quickResponse(button, action) {
     busy = false;
   }
 }
+let checkingUpdate = false;
+async function checkForUpdates() {
+  if (checkingUpdate) return;
+  checkingUpdate = true;
+  document
+    .querySelectorAll("[data-check-update]")
+    .forEach((button) => (button.disabled = true));
+  toast("Checking for updates…");
+  try {
+    const currentVersion = document.querySelector(
+      'meta[name="app-version"]',
+    )?.content;
+    if (!currentVersion || currentVersion === "development")
+      throw new Error("Update checks are available on the published website.");
+    const latest = await findUpdate(currentVersion, appUrl);
+    if (latest.available) {
+      toast("New version found. Updating…");
+      location.replace(updateUrl(location.href, latest.version));
+    } else toast("You’re on the latest published version.");
+  } catch (error) {
+    toast(error.message || "Couldn’t check for updates. Please try again.");
+  } finally {
+    checkingUpdate = false;
+    document
+      .querySelectorAll("[data-check-update]")
+      .forEach((button) => (button.disabled = false));
+  }
+}
 function bind() {
+  document
+    .querySelectorAll("[data-check-update]")
+    .forEach((button) => (button.onclick = checkForUpdates));
   document.querySelectorAll("[data-view]").forEach(
     (button) =>
       (button.onclick = (event) => {
