@@ -26,6 +26,10 @@ Open port 3000. Set `PORT` to change the port. `DATA_DIR` defaults to `.data`; t
 5. Mark Going, Maybe, or Out and offer passenger seats if driving. Open **Details & rides** on an event to update attendance and offer seats. **Carpool details** lists drivers, offered seats, and attendees without ride offers. Seat reservation, pickup assignment, and messaging are not implemented; coordinate those with your friends.
 6. The calendar shows all group events. Other devices refresh every 15 seconds. Data persists across server restarts.
 
+## Edit a group
+
+Tap the group name (or your name at the top), choose **Edit group**, change the name, and select **Save changes**. Any member can rename their own group. Events, votes, members, and invite links stay the same. Existing Supabase projects need the small one-time [group settings update](supabase/group-settings.sql) run in SQL Editor; fresh installations include it in `schema.sql`.
+
 ## Event notifications
 
 Tap the **bell** to enable or disable new-event alerts on each device. Notifications require a one-time owner setup; follow [the notification setup guide](supabase/NOTIFICATIONS.md). On iPhone, use iOS 16.4+ and launch the installed Home Screen app. Alerts are sent to other subscribed group members by Supabase, even when the app is closed. Notification setup is not activated just by publishing the website.

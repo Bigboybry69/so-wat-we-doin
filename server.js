@@ -23,6 +23,7 @@ const server=http.createServer(async(req,res)=>{
   if(req.method==='POST' && url.pathname==='/api/groups') { const b=await body(req), gid=id(),token=id(); db.prepare('INSERT INTO groups VALUES (?,?)').run(gid,str(b.group),); db.prepare('INSERT INTO members VALUES (?,?,?)').run(token,gid,str(b.name,40)); return send({token,invite:gid},201); }
   if(req.method==='POST' && url.pathname==='/api/join') {const b=await body(req); if(!db.prepare('SELECT id FROM groups WHERE id=?').get(b.invite)) fail('That invite was not found.',404); const token=id();db.prepare('INSERT INTO members VALUES (?,?,?)').run(token,b.invite,str(b.name,40));return send({token,invite:b.invite},201);}
   const member=db.prepare('SELECT * FROM members WHERE token=?').get(req.headers.authorization?.replace(/^Bearer /,'' )||''); if(!member) fail('Please join or create a group.',401);
+  if(req.method==='POST' && url.pathname==='/api/group') { const b=await body(req), name=str(b.name); db.prepare('UPDATE groups SET name=? WHERE id=?').run(name,member.gid); return send({id:member.gid,name}); }
   if(req.method==='GET' && url.pathname==='/api/state') {
    const group=db.prepare('SELECT * FROM groups WHERE id=?').get(member.gid);
    const members=db.prepare('SELECT rowid AS id,name,token FROM members WHERE gid=?').all(member.gid);

@@ -215,7 +215,7 @@ function render() {
     .sort((a, b) => new Date(a.starts) - new Date(b.starts));
   $("#app").innerHTML = `<main class="shell">
     <header class="masthead"><div class="top-line"><span class="system-label">DOIN’ / SHARED PLANS</span><div class="account-controls">${token ? `<button id="notifications" class="notification-button" aria-label="Notification settings" title="Notifications">${icon("bell")}</button>` : ""}<button id="account" class="identity">${icon("users")}${token ? esc(state.me.name) : "Join the grid"}</button></div></div><a class="wordmark" href="./" aria-label="The Grid home"><img src="./wordmark.svg" alt="The Grid" width="600" height="81"></a><p class="tagline"><span class="status-dot ${token && !connected ? "offline" : ""}"></span>${token ? (connected ? "YOUR PEOPLE. ONE PLACE." : "RECONNECTING TO YOUR GROUP") : "GOOD PLANS START HERE."}</p></header>
-    <div class="command-bar"><div class="group-info"><span class="group-glyph">${icon("users")}</span><div><h1>${esc(state.group.name)}</h1><p>${token ? state.members.length + " people connected" : "A simpler way to get together"}</p></div></div><button id="invite" class="secondary">${icon("plus")} Invite friends</button></div>
+    <div class="command-bar"><div class="group-info"><span class="group-glyph">${icon("users")}</span><div><h1>${token ? `<button id="group-settings" class="group-name" aria-label="Group settings">${esc(state.group.name)}</button>` : esc(state.group.name)}</h1><p>${token ? state.members.length + " people connected" : "A simpler way to get together"}</p></div></div><button id="invite" class="secondary">${icon("plus")} Invite friends</button></div>
     ${!token ? '<div class="demo-banner"><span>Sample events. Make a group to start planning.</span><button id="start">Create group <span aria-hidden="true">→</span></button></div>' : ""}
     <div class="view-toolbar"><nav class="view-tabs" aria-label="View"><button data-view="events" aria-pressed="${view === "events"}" class="${view === "events" ? "selected" : ""}">${icon("grid")} Events</button><button data-view="calendar" aria-pressed="${view === "calendar"}" class="${view === "calendar" ? "selected" : ""}">${icon("calendar")} Calendar</button></nav><button class="primary" id="add">${icon("plus")} Add event</button></div>
     ${view === "calendar" ? calendar() : `<section aria-label="${showPast ? "Past" : "Upcoming"} events"><div class="section-line"><h2 class="section-heading">${showPast ? "PAST EVENTS" : "UPCOMING EVENTS"}</h2><span>${events.length} ${events.length === 1 ? "plan" : "plans"}</span></div><div class="cards">${events.map(card).join("") || `<div class="empty-state panel">${icon("calendar")}<h2>${showPast ? "No past plans." : "Your grid is clear."}</h2><p>${showPast ? "Your finished events will show up here." : "Add an event. Get your people together."}</p>${showPast ? "" : '<button class="primary" id="empty-add">Add your first event</button>'}</div>`}</div><button id="past" class="past-toggle">${showPast ? "Back to upcoming events" : "Past events"} ${icon("arrow")}</button></section>`}
@@ -237,9 +237,10 @@ function groupDialog() {
   const inviteCode = new URLSearchParams(location.search).get("join");
   if (token && !inviteCode) {
     modal(
-      `<p class="eyebrow">YOUR GROUP</p><h2>${esc(state.group.name)}</h2><p>You're connected as <strong>${esc(state.me.name)}</strong>.</p><div class="member-list">${state.members.map((m) => `<span>${esc(m.name)}</span>`).join("")}</div><button id="share-group" class="primary">${icon("plus")} Invite friends</button><button id="leave" class="text-button">Leave this group on this device</button><p class="hint">Leaving doesn’t delete the group. Keep an invite link if you want to rejoin.</p>`,
+      `<p class="eyebrow">YOUR GROUP</p><h2>${esc(state.group.name)}</h2><p>You're connected as <strong>${esc(state.me.name)}</strong>.</p><div class="member-list">${state.members.map((m) => `<span>${esc(m.name)}</span>`).join("")}</div><div class="group-actions"><button id="share-group" class="primary">${icon("plus")} Invite friends</button><button id="edit-group" class="secondary">Edit group</button></div><button id="leave" class="text-button">Leave this group on this device</button><p class="hint">Leaving doesn’t delete the group. Keep an invite link if you want to rejoin.</p>`,
     );
     $("#share-group").onclick = invite;
+    $("#edit-group").onclick = editGroupDialog;
     $("#leave").onclick = async () => {
       try {
         await disableNotifications(api);
@@ -275,6 +276,34 @@ function groupDialog() {
       toast(inviteCode ? "You’re in." : "Group created. Invite your friends.");
     } catch (error) {
       $(".form-error").textContent = error.message;
+      button.disabled = false;
+    }
+  };
+}
+
+function editGroupDialog() {
+  modal(
+    `<p class="eyebrow">GROUP SETTINGS</p><h2>Edit group</h2><form id="edit-group-form"><label>Group name<input name="name" required maxlength="120" value="${esc(state.group.name)}" placeholder="Your group name"></label><p class="hint">This changes the name for everyone. Your events and invite link stay the same.</p><div class="group-actions"><button class="primary" type="submit">Save changes ${icon("check")}</button><button class="secondary" type="button" id="cancel-edit-group">Cancel</button></div><p class="form-error" role="alert"></p></form>`,
+  );
+  $("#cancel-edit-group").onclick = groupDialog;
+  $("#edit-group-form").onsubmit = async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget,
+      button = form.querySelector("[type=submit]");
+    const name = new FormData(form).get("name").trim();
+    if (!name) {
+      form.querySelector(".form-error").textContent = "Enter a group name.";
+      return;
+    }
+    button.disabled = true;
+    try {
+      const group = await api("group", { name });
+      state.group = group;
+      render();
+      groupDialog();
+      toast("Group name updated for everyone.");
+    } catch (error) {
+      form.querySelector(".form-error").textContent = error.message;
       button.disabled = false;
     }
   };
@@ -529,6 +558,7 @@ function bind() {
   });
   $("#invite").onclick = invite;
   $("#account").onclick = groupDialog;
+  if ($("#group-settings")) $("#group-settings").onclick = groupDialog;
   if ($("#notifications")) $("#notifications").onclick = notificationDialog;
   if ($("#start")) $("#start").onclick = groupDialog;
   if ($("#past"))

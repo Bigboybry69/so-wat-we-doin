@@ -1,31 +1,152 @@
-import { test, before, after } from 'node:test';
-import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-const dir=mkdtempSync(join(tmpdir(),'doin-test-'));let proc;const base='http://127.0.0.1:3107';
-async function request(path,data,token){const r=await fetch(base+'/api/'+path,{method:data?'POST':'GET',headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},...(data?{body:JSON.stringify(data)}:{})});return {status:r.status,body:await r.json()};}
-before(async()=>{proc=spawn(process.execPath,['server.js'],{env:{...process.env,PORT:'3107',DATA_DIR:dir},stdio:'pipe'});await new Promise((resolve,reject)=>{proc.stdout.once('data',resolve);proc.once('error',reject);proc.once('exit',()=>reject(Error('Server exited before startup')));});});
-after(()=>{proc.kill();rmSync(dir,{recursive:true,force:true});});
-test('shared group lifecycle, votes, attendance, carpools, and isolation',async()=>{
- const a=await request('groups',{group:'Weekend crew',name:'Alex'});assert.equal(a.status,201);
- const b=await request('join',{invite:a.body.invite,name:'Sam'});assert.equal(b.status,201);
- const stranger=await request('groups',{group:'Other crew',name:'Stranger'});
- const event={title:'Live music',place:'The park',category:'Music',url:'https://example.com/concert',starts:'2026-11-01T18:00:00Z',ends:'2026-11-01T20:00:00Z'};
- assert.equal((await request('events',{...event,ends:event.starts},a.body.token)).status,400);
- assert.equal((await request('events',{...event,url:'javascript:alert(1)'},a.body.token)).status,400);
- const e=await request('events',event,a.body.token);assert.equal(e.status,201);
- const response={event:e.body.id,vote:1,status:'going',seats:3};
- assert.equal((await request('respond',response,stranger.body.token)).status,404);
- assert.equal((await request('respond',response,a.body.token)).status,200);
- assert.equal((await request('respond',{...response,seats:0},b.body.token)).status,200);
- const s=await request('state',null,b.body.token);assert.equal(s.body.events.length,1);assert.equal(s.body.members.length,2);assert.equal(s.body.events[0].responses.length,2);assert.equal(s.body.events[0].responses.reduce((n,r)=>n+r.vote,0),2);assert.equal(s.body.events[0].responses.find(r=>r.mine).name,'Sam');assert.equal(s.body.events[0].responses[0].member,undefined);assert.equal(s.body.members[0].token,undefined);
- await request('respond',{...response,vote:0,status:'out'},a.body.token);
- const updated=(await request('state',null,b.body.token)).body.events[0];assert.equal(updated.responses.find(r=>r.name==='Alex').seats,0);assert.equal(updated.responses.length,2);
- assert.equal((await request('state',null,stranger.body.token)).body.events.length,0);
- assert.equal((await request('state')).status,401);
- assert.equal((await request('respond',{...response,seats:-1},a.body.token)).status,400);
- assert.equal((await request('join',{invite:'missing',name:'No'})).status,404);
+import { test, before, after } from "node:test";
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+const dir = mkdtempSync(join(tmpdir(), "doin-test-"));
+let proc;
+const base = "http://127.0.0.1:3107";
+async function request(path, data, token) {
+  const r = await fetch(base + "/api/" + path, {
+    method: data ? "POST" : "GET",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: "Bearer " + token } : {}),
+    },
+    ...(data ? { body: JSON.stringify(data) } : {}),
+  });
+  return { status: r.status, body: await r.json() };
+}
+before(async () => {
+  proc = spawn(process.execPath, ["server.js"], {
+    env: { ...process.env, PORT: "3107", DATA_DIR: dir },
+    stdio: "pipe",
+  });
+  await new Promise((resolve, reject) => {
+    proc.stdout.once("data", resolve);
+    proc.once("error", reject);
+    proc.once("exit", () => reject(Error("Server exited before startup")));
+  });
 });
-test('serves app and home screen manifest',async()=>{const r=await fetch(base);assert.equal(r.status,200);assert.match(await r.text(),/apple-mobile-web-app-capable/);const manifest=await(await fetch(base+'/manifest.json')).json();assert.equal(manifest.display,'standalone');assert.equal((await fetch(base+'/missing')).status,404);});
+after(() => {
+  proc.kill();
+  rmSync(dir, { recursive: true, force: true });
+});
+test("shared group lifecycle, votes, attendance, carpools, and isolation", async () => {
+  const a = await request("groups", { group: "Weekend crew", name: "Alex" });
+  assert.equal(a.status, 201);
+  const b = await request("join", { invite: a.body.invite, name: "Sam" });
+  assert.equal(b.status, 201);
+  const stranger = await request("groups", {
+    group: "Other crew",
+    name: "Stranger",
+  });
+  const event = {
+    title: "Live music",
+    place: "The park",
+    category: "Music",
+    url: "https://example.com/concert",
+    starts: "2026-11-01T18:00:00Z",
+    ends: "2026-11-01T20:00:00Z",
+  };
+  assert.equal(
+    (await request("events", { ...event, ends: event.starts }, a.body.token))
+      .status,
+    400,
+  );
+  assert.equal(
+    (
+      await request(
+        "events",
+        { ...event, url: "javascript:alert(1)" },
+        a.body.token,
+      )
+    ).status,
+    400,
+  );
+  const e = await request("events", event, a.body.token);
+  assert.equal(e.status, 201);
+  const response = { event: e.body.id, vote: 1, status: "going", seats: 3 };
+  assert.equal(
+    (await request("respond", response, stranger.body.token)).status,
+    404,
+  );
+  assert.equal((await request("respond", response, a.body.token)).status, 200);
+  assert.equal(
+    (await request("respond", { ...response, seats: 0 }, b.body.token)).status,
+    200,
+  );
+  const s = await request("state", null, b.body.token);
+  assert.equal(s.body.events.length, 1);
+  assert.equal(s.body.members.length, 2);
+  assert.equal(s.body.events[0].responses.length, 2);
+  assert.equal(
+    s.body.events[0].responses.reduce((n, r) => n + r.vote, 0),
+    2,
+  );
+  assert.equal(s.body.events[0].responses.find((r) => r.mine).name, "Sam");
+  assert.equal(s.body.events[0].responses[0].member, undefined);
+  assert.equal(s.body.members[0].token, undefined);
+  await request(
+    "respond",
+    { ...response, vote: 0, status: "out" },
+    a.body.token,
+  );
+  const updated = (await request("state", null, b.body.token)).body.events[0];
+  assert.equal(updated.responses.find((r) => r.name === "Alex").seats, 0);
+  assert.equal(updated.responses.length, 2);
+  assert.equal(
+    (await request("state", null, stranger.body.token)).body.events.length,
+    0,
+  );
+  assert.equal((await request("state")).status, 401);
+  assert.equal(
+    (await request("respond", { ...response, seats: -1 }, a.body.token)).status,
+    400,
+  );
+  assert.equal(
+    (await request("join", { invite: "missing", name: "No" })).status,
+    404,
+  );
+  const beforeRename = (await request("state", null, b.body.token)).body;
+  assert.equal((await request("group", { name: "No token" })).status, 401);
+  assert.equal(
+    (await request("group", { name: "  " }, b.body.token)).status,
+    400,
+  );
+  assert.equal(
+    (await request("group", { name: "x".repeat(121) }, b.body.token)).status,
+    400,
+  );
+  const renamed = await request(
+    "group",
+    { name: "  New crew  ", id: stranger.body.invite },
+    b.body.token,
+  );
+  assert.deepEqual(renamed.body, { id: a.body.invite, name: "New crew" });
+  const afterRename = (await request("state", null, b.body.token)).body;
+  assert.deepEqual(afterRename.events, beforeRename.events);
+  assert.deepEqual(afterRename.members, beforeRename.members);
+  assert.equal(
+    (await request("state", null, a.body.token)).body.group.name,
+    "New crew",
+  );
+  assert.equal(
+    (await request("state", null, stranger.body.token)).body.group.name,
+    "Other crew",
+  );
+  assert.equal(
+    (await request("join", { invite: a.body.invite, name: "Another friend" }))
+      .status,
+    201,
+  );
+});
+test("serves app and home screen manifest", async () => {
+  const r = await fetch(base);
+  assert.equal(r.status, 200);
+  assert.match(await r.text(), /apple-mobile-web-app-capable/);
+  const manifest = await (await fetch(base + "/manifest.json")).json();
+  assert.equal(manifest.display, "standalone");
+  assert.equal((await fetch(base + "/missing")).status, 404);
+});

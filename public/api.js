@@ -12,6 +12,7 @@ export async function api(path, data, token) {
   if (configured) {
     const names = {
       groups: "doin_create_group",
+      group: "doin_update_group",
       join: "doin_join",
       state: "doin_state",
       events: "doin_add_event",
@@ -57,6 +58,10 @@ export async function api(path, data, token) {
     );
   }
   if (!response.ok) {
+    if (result.code === "PGRST202" && path === "group")
+      throw new Error(
+        "Group editing needs a one-time database update. Run supabase/group-settings.sql in the Supabase SQL Editor.",
+      );
     if (result.code === "PGRST202" && path.startsWith("push"))
       throw new Error("Notifications need the one-time server setup first.");
     if (result.code === "PGRST202")

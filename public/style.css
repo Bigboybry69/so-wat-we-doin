@@ -1391,3 +1391,22 @@ input[type="datetime-local"] {
     max-width: 110px;
   }
 }
+.group-actions {
+  display: flex;
+  gap: 10px;
+}
+.group-actions > * {
+  flex: 1;
+}
+.group-actions #share-group {
+  width: auto;
+}
+.group-name {
+  text-align: left;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+}
+.group-name:hover {
+  color: var(--cyan);
+}

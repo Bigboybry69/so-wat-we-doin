@@ -6,7 +6,7 @@ Use a public GitHub repository for free GitHub Pages on GitHub Free. Use the Fre
 
 In your Supabase project, open **SQL Editor → New query**. Copy all of [schema.sql](schema.sql), paste it into the editor, and click **Run**. This creates the app's tables and access functions. Re-running it is safe. It does not import local demo or SQLite data.
 
-Keep the `doin_private` schema out of Supabase's exposed schemas (the default exposes `public`, which is correct). Never disable the schema's permissions or RLS. The schema enables RLS with no public policies and revokes direct access. Only five RPC functions can access group data; each read/write requires a random membership token. Membership tokens are stored hashed, and are not included in member lists. Group creation and invite-based joining are intentionally public.
+Keep the `doin_private` schema out of Supabase's exposed schemas (the default exposes `public`, which is correct). Never disable the schema's permissions or RLS. The schema enables RLS with no public policies and revokes direct access. Only the app’s explicitly granted RPC functions can access group data; each read/write requires a random membership token. Membership tokens are stored hashed, and are not included in member lists. Group creation and invite-based joining are intentionally public.
 
 ## 2. Website connection settings
 
@@ -35,3 +35,7 @@ Open the live address in Safari → Share → Add to Home Screen → Add. The we
 ## Limits
 
 No paid service, analytics, or billing integration is added. Hosting providers control free-plan limits. Groups use private invites and per-browser membership, not recoverable user accounts. Keep invites private. A public Supabase key cannot enumerate group data, but public create/join endpoints can be abused without additional rate limiting. Use this with a small trusted group; production administration and abuse controls remain future work.
+
+## Rename an existing group
+
+For projects created before group editing was added, run [group-settings.sql](group-settings.sql) once in Supabase SQL Editor. It adds only the rename RPC and does not reset data or change invite links. Existing members can then tap the group name → Edit group → Save changes. No new account or paid service is required.
