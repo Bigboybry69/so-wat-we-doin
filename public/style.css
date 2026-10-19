@@ -1554,11 +1554,12 @@ input[type="datetime-local"] {
 }
 .dashboard-grid {
   display: grid;
-  grid-template-columns: 1.15fr 1fr;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
   gap: 20px;
 }
 .next-panel,
 .decisions-panel {
+  min-width: 0;
   padding: 24px;
 }
 .dashboard-grid .section-line {
@@ -1582,6 +1583,8 @@ input[type="datetime-local"] {
   margin: 0;
 }
 .next-title button {
+  max-width: 100%;
+  overflow-wrap: anywhere;
   text-align: left;
   padding: 0;
 }
@@ -1633,6 +1636,7 @@ input[type="datetime-local"] {
   margin-top: 5px;
 }
 .dashboard-event > .icon {
+  flex-shrink: 0;
   margin-left: auto;
   color: #6394a6;
   width: 16px;
@@ -1982,7 +1986,7 @@ input[type="datetime-local"] {
     bottom: 15px;
   }
   .dashboard-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 12px;
   }
   .next-panel,
