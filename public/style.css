@@ -2376,3 +2376,33 @@ input[type="datetime-local"] {
 .calendar-event-names span {border-left-color:var(--author-color,var(--cyan))}
 .day-dots {display:flex;align-items:center;justify-content:center;gap:4px;min-height:7px;margin:3px 0}
 .day-dots i {display:block;width:5px;height:5px;flex-shrink:0;border-radius:50%;background:var(--author-color,var(--cyan));box-shadow:0 0 4px var(--author-color,var(--cyan))}
+
+/* Each event uses one author hue for its surface, frame, and lettering. */
+.dashboard-shell .event-card,
+.week-event {
+  color:var(--author-color,var(--cyan));
+  background:color-mix(in srgb,var(--author-color,var(--cyan)) 12%,#080e13);
+}
+.week-event:hover,.week-event:focus-visible,
+.dashboard-shell .event-card:hover {
+  background:color-mix(in srgb,var(--author-color,var(--cyan)) 18%,#080e13);
+}
+.dashboard-shell .event-card :is(.event-time,.event-heading h3,.event-heading h3 button,.location,.location .icon,.attendance,.attendance > .icon,.ride-count,.date-tile,.date-tile b,.date-tile > span,.card-actions button,.card-actions button b,.conflict),
+.week-event :is(.week-event-time,strong,.week-event-status,.week-author) {
+  color:var(--author-color,var(--cyan));
+}
+.dashboard-shell .event-card :is(.date-tile,.card-actions button,.conflict) {
+  border-color:color-mix(in srgb,var(--author-color,var(--cyan)) 55%,transparent);
+  background:color-mix(in srgb,var(--author-color,var(--cyan)) 8%,transparent);
+}
+.dashboard-shell .event-card .card-actions button.active {
+  border-color:var(--author-color,var(--cyan));
+  background:color-mix(in srgb,var(--author-color,var(--cyan)) 25%,#080e13);
+}
+.dashboard-shell .event-card .card-actions button b {
+  background:color-mix(in srgb,var(--author-color,var(--cyan)) 18%,transparent);
+}
+.calendar-event-names span {
+  color:var(--author-color,var(--cyan));
+  background:color-mix(in srgb,var(--author-color,var(--cyan)) 12%,transparent);
+}
