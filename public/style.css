@@ -2364,3 +2364,15 @@ input[type="datetime-local"] {
 .food-remove {font-size:10px;margin:0;padding:4px;min-height:36px;flex-shrink:0}
 @media(max-width:800px) {.food-list {grid-template-columns:minmax(0,1fr)}}
 @media(max-width:600px) {.food-card {padding:14px;gap:10px}.food-mark {padding:7px}.food-mark .icon {width:17px;height:17px}.food-copy h2 {font-size:16px}}
+
+/* Consistent author colors connect event frames, weekly plans, and calendar dots. */
+.dashboard-shell .event-card {border-color:var(--author-color,var(--cyan))}
+.dashboard-shell .event-card:hover {border-color:var(--author-color,var(--cyan));box-shadow:0 0 14px color-mix(in srgb,var(--author-color,var(--cyan)) 18%,transparent)}
+.event-card:before {background:var(--author-color,var(--cyan));box-shadow:0 0 10px var(--author-color,var(--cyan))}
+.event-author {grid-column:1/-1;justify-self:end;align-self:flex-end;margin:2px 0 0;text-align:right;font-size:10px;color:var(--author-color,var(--cyan));overflow-wrap:anywhere;max-width:100%}
+.week-event {border-color:var(--author-color,var(--cyan));border-left-color:var(--author-color,var(--cyan))}
+.week-event:hover,.week-event:focus-visible {border-color:var(--author-color,var(--cyan))}
+.week-author {align-self:flex-end;text-align:right;font-size:9px;color:var(--author-color,var(--cyan));overflow-wrap:anywhere}
+.calendar-event-names span {border-left-color:var(--author-color,var(--cyan))}
+.day-dots {display:flex;align-items:center;justify-content:center;gap:4px;min-height:7px;margin:3px 0}
+.day-dots i {display:block;width:5px;height:5px;flex-shrink:0;border-radius:50%;background:var(--author-color,var(--cyan));box-shadow:0 0 4px var(--author-color,var(--cyan))}

@@ -159,13 +159,20 @@ const overlaps = (event) =>
       new Date(other.starts) < new Date(event.ends) &&
       new Date(other.ends) > new Date(event.starts),
   );
+// Hash only the author label: the same person keeps the same color on every device.
+function authorColor(author) {
+  let hash=2166136261;
+  for(const char of String(author||'Unknown')) {hash^=char.codePointAt(0);hash=Math.imul(hash,16777619);}
+  return `hsl(${(hash>>>0)%360} 80% 72%)`;
+}
+const postedBy = event => `Posted by ${event.author || 'Unknown'}`;
 function card(event) {
   const mine = event.responses.find((r) => r.mine),
     going = event.responses.filter((r) => r.status === "going");
   const seats = going.reduce((sum, r) => sum + r.seats, 0),
     votes = event.responses.reduce((sum, r) => sum + r.vote, 0),
     start = new Date(event.starts);
-  return `<article class="event-card panel"><div class="event-heading"><div class="date-tile"><span>${start.toLocaleDateString(undefined, { month: "short" })}</span><b>${start.getDate()}</b></div><div class="event-copy"><p class="event-time">${date(event.starts)} · ${time(event.starts)}${overlaps(event).length ? '<span class="conflict">Time clash</span>' : ""}</p><h3><button data-open="${event.id}">${esc(event.title)}</button></h3><p class="location">${icon("pin")}${esc(event.place)}</p></div></div><div class="attendance">${icon("users")}<span>${going.length} going</span>${seats ? `<span class="ride-count">${icon("car")}${seats} seats</span>` : ""}</div><div class="card-actions"><button class="vote ${mine?.vote ? "active" : ""}" data-vote="${event.id}" aria-pressed="${Boolean(mine?.vote)}" aria-label="Vote for ${esc(event.title)}">${icon("vote")} Vote <b>${votes}</b></button><button class="going-button ${mine?.status === "going" ? "active" : ""}" data-going="${event.id}" aria-pressed="${mine?.status === "going"}">${icon(mine?.status === "going" ? "check" : "plus")}${mine?.status === "going" ? "Going" : "I’m going"}</button><button class="details-button" data-open="${event.id}">Details & rides ${icon("arrow")}</button></div></article>`;
+  return `<article class="event-card panel" style="--author-color:${authorColor(event.author)}"><div class="event-heading"><div class="date-tile"><span>${start.toLocaleDateString(undefined, { month: "short" })}</span><b>${start.getDate()}</b></div><div class="event-copy"><p class="event-time">${date(event.starts)} · ${time(event.starts)}${overlaps(event).length ? '<span class="conflict">Time clash</span>' : ""}</p><h3><button data-open="${event.id}">${esc(event.title)}</button></h3><p class="location">${icon("pin")}${esc(event.place)}</p></div></div><div class="attendance">${icon("users")}<span>${going.length} going</span>${seats ? `<span class="ride-count">${icon("car")}${seats} seats</span>` : ""}</div><div class="card-actions"><button class="vote ${mine?.vote ? "active" : ""}" data-vote="${event.id}" aria-pressed="${Boolean(mine?.vote)}" aria-label="Vote for ${esc(event.title)}">${icon("vote")} Vote <b>${votes}</b></button><button class="going-button ${mine?.status === "going" ? "active" : ""}" data-going="${event.id}" aria-pressed="${mine?.status === "going"}">${icon(mine?.status === "going" ? "check" : "plus")}${mine?.status === "going" ? "Going" : "I’m going"}</button><button class="details-button" data-open="${event.id}">Details & rides ${icon("arrow")}</button></div><p class="event-author">${esc(postedBy(event))}</p></article>`;
 }
 function upcoming() {
   return state.events
@@ -183,7 +190,7 @@ function dashboard() {
     return {day,events};
   });
   const shortDate = value => value.toLocaleDateString(undefined,{month:'short',day:'numeric'});
-  return `<section class="weekly-calendar panel" aria-label="This week’s events"><div class="week-heading"><div><h2>This week</h2><p>${shortDate(start)} – ${shortDate(days[6].day)}</p></div><button class="text-button" data-view="calendar">Full calendar ${icon('arrow')}</button></div><div class="week-grid">${days.map(({day,events})=>`<section class="week-day ${dayKey(day)===dayKey(today)?'is-today':''}" aria-label="${esc(date(day))}"><h3><span>${day.toLocaleDateString(undefined,{weekday:'short'})}</span><b>${day.getDate()}</b>${dayKey(day)===dayKey(today)?'<small>Today</small>':''}</h3><div class="week-plans">${events.map(e=>`<button class="week-event ${new Date(e.ends)<today?'has-ended':''}" data-open="${e.id}"><span class="week-event-time">${new Date(e.starts)<day?'Continues':time(e.starts)}</span><strong>${esc(e.title)}</strong><span class="week-event-status">${e.responses.some(r=>r.mine&&r.status==='going')?'You’re going':e.responses.filter(r=>r.status==='going').length+' going'}</span></button>`).join('')||'<p class="week-empty">No plans</p>'}</div></section>`).join('')}</div></section>`;
+  return `<section class="weekly-calendar panel" aria-label="This week’s events"><div class="week-heading"><div><h2>This week</h2><p>${shortDate(start)} – ${shortDate(days[6].day)}</p></div><button class="text-button" data-view="calendar">Full calendar ${icon('arrow')}</button></div><div class="week-grid">${days.map(({day,events})=>`<section class="week-day ${dayKey(day)===dayKey(today)?'is-today':''}" aria-label="${esc(date(day))}"><h3><span>${day.toLocaleDateString(undefined,{weekday:'short'})}</span><b>${day.getDate()}</b>${dayKey(day)===dayKey(today)?'<small>Today</small>':''}</h3><div class="week-plans">${events.map(e=>`<button class="week-event ${new Date(e.ends)<today?'has-ended':''}" style="--author-color:${authorColor(e.author)}" data-open="${e.id}"><span class="week-event-time">${new Date(e.starts)<day?'Continues':time(e.starts)}</span><strong>${esc(e.title)}</strong><span class="week-event-status">${e.responses.some(r=>r.mine&&r.status==='going')?'You’re going':e.responses.filter(r=>r.status==='going').length+' going'}</span><span class="week-author">${esc(postedBy(e))}</span></button>`).join('')||'<p class="week-empty">No plans</p>'}</div></section>`).join('')}</div></section>`;
 }
 function foodPage() {
   const restaurants=state.restaurants||[];
@@ -252,12 +259,12 @@ function calendar() {
       const dayEvents = state.events.filter((e) => dayKey(e.starts) === key);
       return `<button class="day ${key === selectedDay ? "selected" : ""} ${key === dayKey(new Date()) ? "today" : ""}" data-day="${key}" aria-label="${date(new Date(year, m, i + 1))}, ${dayEvents.length} events" aria-pressed="${key === selectedDay}"><span>${i + 1}</span><div class="calendar-event-names">${dayEvents
         .slice(0, 2)
-        .map((e) => `<span>${esc(e.title)}</span>`)
+        .map((e) => `<span style="--author-color:${authorColor(e.author)}" title="${esc(postedBy(e))}">${esc(e.title)}</span>`)
         .join(
           "",
         )}${dayEvents.length > 2 ? `<small>+${dayEvents.length - 2} more</small>` : ""}</div><span class="day-dots">${dayEvents
         .slice(0, 3)
-        .map(() => "<i></i>")
+        .map(e => `<i style="--author-color:${authorColor(e.author)}" title="${esc(postedBy(e))}" aria-label="${esc(postedBy(e))}"></i>`)
         .join("")}</span></button>`;
     },
   ).join(
