@@ -165,7 +165,7 @@ function authorColor(author) {
   for(const char of String(author||'Unknown')) {hash^=char.codePointAt(0);hash=Math.imul(hash,16777619);}
   return `hsl(${(hash>>>0)%360} 80% 72%)`;
 }
-const postedBy = event => `Posted by ${event.author || 'Unknown'}`;
+const postedBy = event => event.author || 'Unknown';
 function card(event) {
   const mine = event.responses.find((r) => r.mine),
     going = event.responses.filter((r) => r.status === "going");
