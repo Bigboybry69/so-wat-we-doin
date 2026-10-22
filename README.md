@@ -71,3 +71,8 @@ npm test
 ```
 
 The integration tests launch an isolated server and database. They exercise group creation/joining, shared event persistence, URL/date validation, voting, attendance, ride offers, group isolation, token privacy, and app/manifest delivery. Browser smoke validation also exercised the main workflow and checked 320- and 390-pixel mobile viewports. The simplified interface was checked with two independent browsers using the Supabase RPC adapter, including one-tap voting/Going, ride offers, and calendar date selection. Layout was inspected in desktop Chromium; physical iPhone installation is unverified.
+## Android installation alongside My Recipes
+
+The Grid's manifest has an explicit project-path `id` matching its previous implicit start URL, a project-scoped start URL and scope, and PNG icons at 192 and 512 pixels. At the Pages URL its identity is `/so-wat-we-doin/`, distinct from My Recipes at `/my-recipes/`. Versioned asset or manifest URLs do not change this identity. Existing installations retain the same identity.
+
+Open The Grid's full URL in a normal Chrome tab and use **Install app** or **Add to Home screen**. Sharing a GitHub origin alone does not make two PWAs identical. If Android still reports the recipe app is installed, inspect the phone's installed app details and actual opened URL before clearing site data or uninstalling: current source manifests cannot reveal stale install metadata on a particular phone. Physical Android installation needs device confirmation.

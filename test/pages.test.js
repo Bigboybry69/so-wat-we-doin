@@ -88,6 +88,19 @@ test("Pages build uses relative paths and refuses secret database keys", () => {
     );
     assert.equal(manifest.start_url, "./");
     assert.equal(manifest.scope, "./");
+    assert.equal(manifest.id, "/so-wat-we-doin/");
+    // Preserve the old implicit identity while keeping sibling apps distinct.
+    const manifestUrl = "https://bigboybry69.github.io/so-wat-we-doin/manifest.json?v=release";
+    const identity = new URL(manifest.id, new URL(manifestUrl).origin + "/");
+    assert.equal(identity.href, "https://bigboybry69.github.io/so-wat-we-doin/");
+    assert.notEqual(identity.pathname, "/my-recipes/");
+    for (const size of [192,512]) {
+      const icon = manifest.icons.find(icon => icon.sizes === `${size}x${size}`);
+      assert.equal(icon.type, "image/png");
+      const png = readFileSync(join(dir,"dist",icon.src.split("?")[0]));
+      assert.equal(png.readUInt32BE(16),size);
+      assert.equal(png.readUInt32BE(20),size);
+    }
     const config = readFileSync(join(dir, "dist/config.js"), "utf8");
     assert.match(config, /sb_publishable_saved_test/);
     assert.doesNotMatch(config, /service_role|sb_secret/);
