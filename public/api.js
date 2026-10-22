@@ -20,6 +20,7 @@ export async function api(path, data, token) {
       claimDeviceLink: "doin_claim_device_link",
       removeMember: "doin_remove_member",
       state: "doin_state",
+      eventPhoto: "doin_event_photo",
       events: "doin_add_event",
       deleteEvent: "doin_delete_event",
       respond: "doin_respond",

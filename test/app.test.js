@@ -247,3 +247,12 @@ test('local shared food list supports add, group isolation, validation, and cont
  assert.equal((await request('deleteRestaurant',{restaurant:added.body.id},b.token)).status,403);
  assert.equal((await request('deleteRestaurant',{restaurant:added.body.id},a.token)).status,200);assert.equal((await request('state',null,b.token)).body.restaurants.length,0);
 });
+
+test('local event flags and private photos persist without bloating shared state',async()=>{
+ const a=(await request('groups',{group:'Photo crew',name:'Owner'})).body,b=(await request('join',{invite:a.invite,name:'Friend'})).body,c=(await request('groups',{group:'Other photo crew',name:'Outside'})).body;
+ const fields={title:'Fair',place:'Hall',starts:'2027-01-01T18:00:00Z',ends:'2027-01-01T20:00:00Z'},photo='data:image/jpeg;base64,YQ==';
+ const saved=await request('events',{...fields,rsvpNeeded:true,freeFood:true,careerFair:true,photo},a.token);assert.equal(saved.status,201);
+ const event=(await request('state',null,b.token)).body.events[0];assert.equal(event.rsvpNeeded,true);assert.equal(event.freeFood,true);assert.equal(event.careerFair,true);assert.equal(event.hasPhoto,true);assert.equal(event.photo,undefined);
+ assert.equal((await request('eventPhoto',{event:event.id},b.token)).body.photo,photo);assert.equal((await request('eventPhoto',{event:event.id},c.token)).body.photo,null);
+ assert.equal((await request('events',{...fields,photo:'data:image/svg+xml;base64,YQ=='},a.token)).status,400);
+});

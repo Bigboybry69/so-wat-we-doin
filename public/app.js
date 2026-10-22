@@ -166,13 +166,12 @@ function authorColor(author) {
   return `hsl(${(hash>>>0)%360} 80% 72%)`;
 }
 const postedBy = event => event.author || 'Unknown';
+function eventTags(event) {
+  return `<div class="event-tags">${[['rsvpNeeded','RSVP needed'],['freeFood','Free food'],['careerFair','Career fair']].filter(([key])=>event[key]).map(([,label])=>`<span>${label}</span>`).join('')}</div>`;
+}
 function card(event) {
-  const mine = event.responses.find((r) => r.mine),
-    going = event.responses.filter((r) => r.status === "going");
-  const seats = going.reduce((sum, r) => sum + r.seats, 0),
-    votes = event.responses.reduce((sum, r) => sum + r.vote, 0),
-    start = new Date(event.starts);
-  return `<article class="event-card panel" style="--author-color:${authorColor(event.author)}"><div class="event-heading"><div class="date-tile"><span>${start.toLocaleDateString(undefined, { month: "short" })}</span><b>${start.getDate()}</b></div><div class="event-copy"><p class="event-time">${date(event.starts)} · ${time(event.starts)}${overlaps(event).length ? '<span class="conflict">Time clash</span>' : ""}</p><h3><button data-open="${event.id}">${esc(event.title)}</button></h3><p class="location">${icon("pin")}${esc(event.place)}</p></div></div><div class="attendance">${icon("users")}<span>${going.length} going</span>${seats ? `<span class="ride-count">${icon("car")}${seats} seats</span>` : ""}</div><div class="card-actions"><button class="vote ${mine?.vote ? "active" : ""}" data-vote="${event.id}" aria-pressed="${Boolean(mine?.vote)}" aria-label="Vote for ${esc(event.title)}">${icon("vote")} Vote <b>${votes}</b></button><button class="going-button ${mine?.status === "going" ? "active" : ""}" data-going="${event.id}" aria-pressed="${mine?.status === "going"}">${icon(mine?.status === "going" ? "check" : "plus")}${mine?.status === "going" ? "Going" : "I’m going"}</button><button class="details-button" data-open="${event.id}">Details & rides ${icon("arrow")}</button></div><p class="event-author">${esc(postedBy(event))}</p></article>`;
+  const mine=event.responses.find(r=>r.mine),votes=event.responses.reduce((sum,r)=>sum+r.vote,0),start=new Date(event.starts);
+  return `<article class="event-card panel" style="--author-color:${authorColor(event.author)}"><div class="event-heading"><div class="date-tile"><span>${start.toLocaleDateString(undefined,{month:'short'})}</span><b>${start.getDate()}</b></div><div class="event-copy"><p class="event-time">${date(event.starts)} · ${time(event.starts)}${overlaps(event).length?'<span class="conflict">Time clash</span>':''}</p><h3><button data-open="${event.id}">${esc(event.title)}</button></h3><p class="location">${icon('pin')}${esc(event.place)}</p>${eventTags(event)}</div></div><div class="card-actions"><button class="vote ${mine?.vote?'active':''}" data-vote="${event.id}" aria-pressed="${Boolean(mine?.vote)}" aria-label="Vote for ${esc(event.title)}">${icon('vote')} Vote <b>${votes}</b></button><button class="details-button" data-open="${event.id}">${event.hasPhoto?'Photo & details':'Details'} ${icon('arrow')}</button></div><p class="event-author">${esc(postedBy(event))}</p></article>`;
 }
 function upcoming() {
   return state.events
@@ -190,7 +189,7 @@ function dashboard() {
     return {day,events};
   });
   const shortDate = value => value.toLocaleDateString(undefined,{month:'short',day:'numeric'});
-  return `<section class="weekly-calendar panel" aria-label="This week’s events"><div class="week-heading"><div><h2>This week</h2><p>${shortDate(start)} – ${shortDate(days[6].day)}</p></div><button class="text-button" data-view="calendar">Full calendar ${icon('arrow')}</button></div><div class="week-grid">${days.map(({day,events})=>`<section class="week-day ${dayKey(day)===dayKey(today)?'is-today':''}" aria-label="${esc(date(day))}"><h3><span>${day.toLocaleDateString(undefined,{weekday:'short'})}</span><b>${day.getDate()}</b>${dayKey(day)===dayKey(today)?'<small>Today</small>':''}</h3><div class="week-plans">${events.map(e=>`<button class="week-event ${new Date(e.ends)<today?'has-ended':''}" style="--author-color:${authorColor(e.author)}" data-open="${e.id}"><span class="week-event-time">${new Date(e.starts)<day?'Continues':time(e.starts)}</span><strong>${esc(e.title)}</strong><span class="week-event-status">${e.responses.some(r=>r.mine&&r.status==='going')?'You’re going':e.responses.filter(r=>r.status==='going').length+' going'}</span><span class="week-author">${esc(postedBy(e))}</span></button>`).join('')||'<p class="week-empty">No plans</p>'}</div></section>`).join('')}</div></section>`;
+  return `<section class="weekly-calendar panel" aria-label="This week’s events"><div class="week-heading"><div><h2>This week</h2><p>${shortDate(start)} – ${shortDate(days[6].day)}</p></div><button class="text-button" data-view="calendar">Full calendar ${icon('arrow')}</button></div><div class="week-grid">${days.map(({day,events})=>`<section class="week-day ${dayKey(day)===dayKey(today)?'is-today':''}" aria-label="${esc(date(day))}"><h3><span>${day.toLocaleDateString(undefined,{weekday:'short'})}</span><b>${day.getDate()}</b>${dayKey(day)===dayKey(today)?'<small>Today</small>':''}</h3><div class="week-plans">${events.map(e=>`<button class="week-event ${new Date(e.ends)<today?'has-ended':''}" style="--author-color:${authorColor(e.author)}" data-open="${e.id}"><span class="week-event-time">${new Date(e.starts)<day?'Continues':time(e.starts)}</span><strong>${esc(e.title)}</strong>${eventTags(e)}<span class="week-author">${esc(postedBy(e))}</span></button>`).join('')||'<p class="week-empty">No plans</p>'}</div></section>`).join('')}</div></section>`;
 }
 function foodPage() {
   const restaurants=state.restaurants||[];
@@ -218,16 +217,11 @@ function eventsPage() {
           .filter((e) => new Date(e.ends) < new Date())
           .sort((a, b) => new Date(b.starts) - new Date(a.starts))
       : upcoming()
-  ).filter(
-    (e) =>
-      eventFilter !== "going" ||
-      e.responses.some((r) => r.mine && r.status === "going"),
   );
   const pages = Math.max(1, Math.ceil(events.length / 5));
   eventPage = Math.min(eventPage, pages - 1);
   return `<div class="events-toolbar"><div class="event-filters" aria-label="Filter events">${[
     ["all", "All group events"],
-    ["going", "I’m going"],
     ["past", "Past"],
   ]
     .map(
@@ -241,7 +235,7 @@ function eventsPage() {
       .slice(eventPage * 5, eventPage * 5 + 5)
       .map(card)
       .join("") ||
-    `<div class="empty-state panel">${icon("calendar")}<h2>${eventFilter === "going" ? "No plans picked yet." : eventFilter === "past" ? "No past events." : "Your grid is clear."}</h2><p>${eventFilter === "going" ? "Tap I’m going on an event to find it here." : "Add an event to start planning together."}</p>${eventFilter === "all" ? '<button class="primary" id="empty-add">Add your first event</button>' : ""}</div>`
+    `<div class="empty-state panel">${icon("calendar")}<h2>${eventFilter === "past" ? "No past events." : "Your grid is clear."}</h2><p>Add an event to start planning together.</p>${eventFilter === "all" ? '<button class="primary" id="empty-add">Add your first event</button>' : ""}</div>`
   }</section>${pages > 1 ? `<nav class="pagination" aria-label="Event pages"><button data-page="-1" ${eventPage === 0 ? "disabled" : ""}>${icon("left")} Previous</button><span>${eventPage + 1} / ${pages}</span><button data-page="1" ${eventPage === pages - 1 ? "disabled" : ""}>Next ${icon("right")}</button></nav>` : ""}`;
 }
 function calendar() {
@@ -334,7 +328,7 @@ function groupDialog() {
     return;
   }
   modal(
-    `<p class="eyebrow">WELCOME TO THE GRID</p><h2>${inviteCode ? "Your people are here." : "Start with your people."}</h2><p>${inviteCode ? "Enter your name to join their plans." : "One group for events, votes, and rides."}</p><form id="group-form"><label>Your name<input name="name" autocomplete="given-name" maxlength="40" required placeholder="Your name"></label>${inviteCode ? "" : '<label>Group name<input name="group" maxlength="120" required placeholder="The weekend crew"></label>'}<button class="primary">${inviteCode ? "Join group" : "Create group"} ${icon("arrow")}</button><p class="form-error" role="alert"></p></form><button id="restore-from-join" class="text-button">Already a member? Sign back in</button>`,
+    `<p class="eyebrow">WELCOME TO THE GRID</p><h2>${inviteCode ? "Your people are here." : "Start with your people."}</h2><p>${inviteCode ? "Enter your name to join their plans." : "One group for events and ideas."}</p><form id="group-form"><label>Your name<input name="name" autocomplete="given-name" maxlength="40" required placeholder="Your name"></label>${inviteCode ? "" : '<label>Group name<input name="group" maxlength="120" required placeholder="The weekend crew"></label>'}<button class="primary">${inviteCode ? "Join group" : "Create group"} ${icon("arrow")}</button><p class="form-error" role="alert"></p></form><button id="restore-from-join" class="text-button">Already a member? Sign back in</button>`,
   );
   $("#restore-from-join").onclick = signInDialog;
   $("#group-form").onsubmit = async (event) => {
@@ -378,7 +372,7 @@ async function recoveryCodeDialog() {
 }
 function removeMemberDialog(id) {
   const member=state.members.find(m=>String(m.id)===String(id));if(!member?.canRemove)return;
-  modal(`<p class="eyebrow">GROUP MEMBERS</p><h2>Remove ${esc(member.name)}?</h2><p>This signs them out on all linked devices and removes their votes and ride offers. Their shared events stay.</p><div class="group-actions"><button id="cancel-remove" class="secondary">Cancel</button><button id="confirm-remove" class="danger">Remove member</button></div><p class="form-error" role="alert"></p>`);
+  modal(`<p class="eyebrow">GROUP MEMBERS</p><h2>Remove ${esc(member.name)}?</h2><p>This signs them out on all linked devices and removes their votes. Their shared events stay.</p><div class="group-actions"><button id="cancel-remove" class="secondary">Cancel</button><button id="confirm-remove" class="danger">Remove member</button></div><p class="form-error" role="alert"></p>`);
   $('#cancel-remove').onclick=groupDialog;
   $('#confirm-remove').onclick=async()=>{
     $('#confirm-remove').disabled=true;
@@ -511,7 +505,7 @@ function addDialog() {
       .toISOString()
       .slice(0, 16);
   modal(
-    `<p class="eyebrow">NEW EVENT</p><h2>What’s the plan?</h2><form id="event-form"><label>Event link <span class="optional">optional</span><input name="url" type="url" maxlength="2048" placeholder="Paste a social or website link"></label><label>Event name<input name="title" required maxlength="120" placeholder="What are we doing?"></label><label>When<input name="starts" type="datetime-local" value="${local(tomorrow)}" required></label><label>Where<input name="place" required maxlength="120" placeholder="Venue or meeting spot"></label><details class="more-options"><summary>More options</summary><label>Ends <span class="optional">defaults to 2 hours later</span><input name="ends" type="datetime-local"></label><label>Category<select name="category">${["Hangout", ...categories.filter((c) => c !== "Hangout")].map((c) => `<option>${c}</option>`).join("")}</select></label></details><p class="hint">Links are saved with your event. Enter its details above.</p><button class="primary">Add event ${icon("arrow")}</button><p class="form-error" role="alert"></p></form>`,
+    `<p class="eyebrow">NEW EVENT</p><h2>What’s the plan?</h2><form id="event-form"><label>Event link <span class="optional">optional</span><input name="url" type="url" maxlength="2048" placeholder="Paste a social or website link"></label><label>Event name<input name="title" required maxlength="120" placeholder="What are we doing?"></label><label>When<input name="starts" type="datetime-local" value="${local(tomorrow)}" required></label><label>Where<input name="place" required maxlength="120" placeholder="Venue or meeting spot"></label><fieldset class="event-options"><legend>Event details <span class="optional">optional</span></legend><label><input type="checkbox" name="rsvpNeeded"> RSVP needed</label><label><input type="checkbox" name="freeFood"> Free food</label><label><input type="checkbox" name="careerFair"> Career fair</label></fieldset><label>Photo or screenshot <span class="optional">optional</span><input name="photoFile" type="file" accept="image/*"></label><p class="hint">One image, resized to save space. Add the event details yourself.</p><details class="more-options"><summary>More options</summary><label>Ends <span class="optional">defaults to 2 hours later</span><input name="ends" type="datetime-local"></label><label>Category<select name="category">${["Hangout", ...categories.filter((c) => c !== "Hangout")].map((c) => `<option>${c}</option>`).join("")}</select></label></details><p class="hint">Links are saved with your event. Enter its details above.</p><button class="primary">Add event ${icon("arrow")}</button><p class="form-error" role="alert"></p></form>`,
   );
   $("#event-form").onsubmit = async (event) => {
     event.preventDefault();
@@ -519,10 +513,14 @@ function addDialog() {
     button.disabled = true;
     try {
       const data = Object.fromEntries(new FormData(event.target));
+      const file=data.photoFile;delete data.photoFile;
+      for(const key of ['rsvpNeeded','freeFood','careerFair'])data[key]=data[key]==='on';
       const start = new Date(data.starts),
         end = data.ends ? new Date(data.ends) : new Date(+start + 7200000);
       if (!Number.isFinite(+start) || !Number.isFinite(+end) || end <= start)
         throw new Error("End time must be after the start time.");
+      if(file?.size){button.textContent="Preparing photo…";data.photo=await preparePhoto(file);}
+      button.textContent="Saving…";
       await api("events", {
         ...data,
         starts: start.toISOString(),
@@ -539,6 +537,7 @@ function addDialog() {
     } catch (error) {
       $(".form-error").textContent = error.message;
       button.disabled = false;
+      button.textContent = "Add event";
     }
   };
 }
@@ -555,72 +554,37 @@ async function respond(event, changes) {
   await api("respond", {
     event: event.id,
     vote: mine.vote,
-    status: mine.status,
-    seats: mine.seats,
+    status: "maybe",
+    seats: 0,
     ...changes,
   });
   await refresh(true);
 }
 function detail(id) {
-  const event = state.events.find((e) => e.id === id);
-  if (!event) return;
-  const mine = event.responses.find((r) => r.mine) || {
-    status: "maybe",
-    seats: 0,
-  };
-  const clashes = overlaps(event);
-  const drivers = event.responses.filter(
-    (r) => r.status === "going" && r.seats > 0,
-  );
-  const passengers = event.responses.filter(
-    (r) => r.status === "going" && !r.seats,
-  );
-  modal(
-    `<p class="eyebrow">EVENT DETAILS</p><h2>${esc(event.title)}</h2><p class="detail-line">${icon("calendar")}${date(event.starts)} · ${time(event.starts)} – ${time(event.ends)}${dayKey(event.starts) !== dayKey(event.ends) ? " (" + date(event.ends) + ")" : ""}</p><p class="detail-line">${icon("pin")}${esc(event.place)}</p>${event.url ? `<a class="source-link" href="${esc(event.url)}" target="_blank" rel="noopener noreferrer">${icon("link")} Open original event ${icon("arrow")}</a>` : ""}${clashes.length ? `<div class="overlap-box"><b>Same time as another plan</b><p>${clashes.map((e) => esc(e.title)).join(", ")}. Vote for your favorite.</p></div>` : ""}<form id="rsvp-form"><label>Are you going?<select name="status"><option value="going" ${mine.status === "going" ? "selected" : ""}>Going</option><option value="maybe" ${mine.status === "maybe" ? "selected" : ""}>Maybe</option><option value="out" ${mine.status === "out" ? "selected" : ""}>Can’t make it</option></select></label><label>Can you offer a ride?<select name="seats">${Array.from({ length: 9 }, (_, n) => `<option value="${n}" ${mine.seats === n ? "selected" : ""}>${n ? n + " passenger seat" + (n > 1 ? "s" : "") : "Not offering a ride"}</option>`).join("")}</select></label><button class="primary">Save ${icon("check")}</button><p class="form-error" role="alert"></p></form><section class="detail-crew"><h3>Who's going</h3>${
-      event.responses
-        .filter((r) => r.status !== "out")
-        .map(
-          (r) =>
-            `<div class="crew-person"><span>${esc(r.name)}</span><span>${r.status === "going" ? "Going" : "Maybe"}${r.seats ? " · " + r.seats + " seats" : ""}</span></div>`,
-        )
-        .join("") || '<p class="hint">No responses yet.</p>'
-    }</section><details class="ride-details"><summary>${icon("car")} Carpool details</summary>${drivers.length ? drivers.map((r) => `<p><strong>${esc(r.name)}</strong> offers ${r.seats} passenger seats.</p>`).join("") : "<p>No ride offers yet.</p>"}${passengers.length ? `<p>Going without a ride offer: ${passengers.map((r) => esc(r.name)).join(", ")}.</p>` : ""}<p class="hint">Arrange pickups with your group. Seats aren’t reserved here.</p></details>${event.canDelete ? '<button id="delete-event" class="delete-event">Delete event</button>' : event.creatorKnown === false ? '<p class="hint legacy-event">This older event has no recorded creator, so deletion is unavailable.</p>' : ""}`,
-  );
-  if ($("#delete-event"))
-    $("#delete-event").onclick = () => confirmDeleteEvent(event);
-  const statusSelect = $("#rsvp-form [name=status]"),
-    seatsSelect = $("#rsvp-form [name=seats]");
-  const syncSeats = () => {
-    seatsSelect.disabled = statusSelect.value !== "going";
-    if (seatsSelect.disabled) seatsSelect.value = "0";
-  };
-  statusSelect.onchange = syncSeats;
-  syncSeats();
-  $("#rsvp-form").onsubmit = async (submitted) => {
-    submitted.preventDefault();
-    if (!token) {
-      groupDialog();
-      return;
-    }
-    const button = submitted.target.querySelector("button");
-    button.disabled = true;
-    try {
-      const data = Object.fromEntries(new FormData(submitted.target));
-      await respond(event, {
-        status: data.status,
-        seats: data.status === "going" ? Number(data.seats) : 0,
-      });
-      $("#modal").close();
-      toast("Response saved.");
-    } catch (error) {
-      $(".form-error").textContent = error.message;
-      button.disabled = false;
-    }
-  };
+  const event=state.events.find(e=>e.id===id);if(!event)return;
+  const clashes=overlaps(event),mine=event.responses.find(r=>r.mine);
+  modal(`<p class="eyebrow">EVENT DETAILS</p><h2>${esc(event.title)}</h2>${eventTags(event)}${event.hasPhoto?'<div id="event-photo" class="event-photo"><p class="hint">Loading photo…</p></div>':''}<p class="detail-line">${icon('calendar')}${date(event.starts)} · ${time(event.starts)} – ${time(event.ends)}${dayKey(event.starts)!==dayKey(event.ends)?' ('+date(event.ends)+')':''}</p><p class="detail-line">${icon('pin')}${esc(event.place)}</p>${event.url?`<a class="source-link" href="${esc(event.url)}" target="_blank" rel="noopener noreferrer">${icon('link')} Open original event ${icon('arrow')}</a>`:''}${clashes.length?`<div class="overlap-box"><b>Same time as another plan</b><p>${clashes.map(e=>esc(e.title)).join(', ')}. Vote for your favorite.</p></div>`:''}<button class="secondary" id="detail-vote">${icon('vote')} ${mine?.vote?'Remove my vote':'Vote for this event'} · ${event.responses.reduce((sum,r)=>sum+r.vote,0)}</button><p class="event-author" style="--author-color:${authorColor(event.author)}">${esc(postedBy(event))}</p>${event.canDelete?'<button id="delete-event" class="delete-event">Delete event</button>':event.creatorKnown===false?'<p class="hint legacy-event">This older event has no recorded creator, so deletion is unavailable.</p>':''}<p class="form-error" role="alert"></p>`);
+  if($('#delete-event'))$('#delete-event').onclick=()=>confirmDeleteEvent(event);
+  $('#detail-vote').onclick=async()=>{if(!token){groupDialog();return;}const button=$('#detail-vote');button.disabled=true;try{await respond(event,{vote:mine?.vote?0:1});detail(id);}catch(error){$('.form-error').textContent=error.message;button.disabled=false;}};
+  if(event.hasPhoto){const container=$('#event-photo');api('eventPhoto',{event:id}).then(result=>{if(!container.isConnected)return;if(result.photo&&/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(result.photo)){const img=document.createElement('img');img.src=result.photo;img.alt='Photo for '+event.title;const expand=document.createElement('button');expand.className='text-button';expand.textContent='Expand photo';expand.onclick=()=>{const expanded=container.classList.toggle('expanded');expand.textContent=expanded?'Shrink photo':'Expand photo';};container.replaceChildren(img,expand);}else container.textContent='Photo unavailable.';}).catch(()=>{if(container.isConnected)container.textContent='Could not load the photo. Reopen the event to retry.';});}
+}
+async function preparePhoto(file) {
+  if(!file.type.startsWith('image/'))throw new Error('Choose a photo or screenshot.');
+  if(file.size>25000000)throw new Error('Choose an image smaller than 25 MB.');
+  const url=URL.createObjectURL(file);
+  try {
+    const image=new Image();image.src=url;await image.decode();
+    const scale=Math.min(1,1400/Math.max(image.naturalWidth,image.naturalHeight));
+    const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
+    const context=canvas.getContext('2d');context.fillStyle='#fff';context.fillRect(0,0,canvas.width,canvas.height);context.drawImage(image,0,0,canvas.width,canvas.height);
+    for(const quality of [.85,.7,.55,.4]){const data=canvas.toDataURL('image/jpeg',quality);if(data.length<=410000)return data;}
+    throw new Error('This image is too detailed. Crop it or choose a smaller screenshot.');
+  }catch(error){if(error.message.includes('image is too detailed'))throw error;throw new Error('Could not open that image. Try a JPG, PNG, or a screenshot.');}
+  finally{URL.revokeObjectURL(url);}
 }
 function confirmDeleteEvent(event) {
   modal(
-    `<p class="eyebrow">DELETE EVENT</p><h2>Delete this event?</h2><p><strong>${esc(event.title)}</strong> will be removed for everyone, including its votes and ride offers. This can’t be undone.</p><div class="group-actions delete-actions"><button class="secondary" id="cancel-delete-event">Keep event</button><button class="danger" id="confirm-delete-event">Delete event</button></div><p class="form-error" role="alert"></p>`,
+    `<p class="eyebrow">DELETE EVENT</p><h2>Delete this event?</h2><p><strong>${esc(event.title)}</strong> will be removed for everyone, including its votes and photo. This can’t be undone.</p><div class="group-actions delete-actions"><button class="secondary" id="cancel-delete-event">Keep event</button><button class="danger" id="confirm-delete-event">Delete event</button></div><p class="form-error" role="alert"></p>`,
   );
   $("#cancel-delete-event").onclick = () => detail(event.id);
   $("#confirm-delete-event").onclick = async () => {
@@ -655,12 +619,7 @@ async function quickResponse(button, action) {
   busy = true;
   button.disabled = true;
   try {
-    await respond(
-      event,
-      action === "vote"
-        ? { vote: mine?.vote ? 0 : 1 }
-        : { status: mine?.status === "going" ? "maybe" : "going", seats: 0 },
-    );
+    await respond(event,{vote:mine?.vote?0:1});
   } catch (error) {
     toast(error.message);
     button.disabled = false;
@@ -728,7 +687,7 @@ function bind() {
   document
     .querySelectorAll("[data-open]")
     .forEach((button) => (button.onclick = () => detail(button.dataset.open)));
-  ["vote", "going"].forEach((action) =>
+  ["vote"].forEach((action) =>
     document
       .querySelectorAll(`[data-${action}]`)
       .forEach(

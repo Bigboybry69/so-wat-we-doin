@@ -1,0 +1,23 @@
+name: Set up event options and photos
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/event-extras.sql'
+      - 'scripts/setup-event-extras.js'
+      - '.github/workflows/event-extras.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install event options and photos
+        run: node scripts/setup-event-extras.js
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
